@@ -15,10 +15,10 @@ The NanoKVM Pro sits between a host computer and its peripherals, exposing USB H
 
 ```bash
 # On the NanoKVM itself
-pip install .
+uv pip install .
 
 # Or for development
-pip install -e ".[dev]"
+uv sync --dev
 ```
 
 ## Quick Start
