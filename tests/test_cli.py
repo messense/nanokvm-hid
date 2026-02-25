@@ -43,6 +43,38 @@ class TestParser:
         args = build_parser().parse_args(["escape"])
         assert args.command == "escape"
 
+    def test_delete(self) -> None:
+        args = build_parser().parse_args(["delete"])
+        assert args.command == "delete"
+
+    def test_space(self) -> None:
+        args = build_parser().parse_args(["space"])
+        assert args.command == "space"
+
+    def test_volume_up(self) -> None:
+        args = build_parser().parse_args(["volume-up"])
+        assert args.command == "volume-up"
+
+    def test_volume_down(self) -> None:
+        args = build_parser().parse_args(["volume-down"])
+        assert args.command == "volume-down"
+
+    def test_mute(self) -> None:
+        args = build_parser().parse_args(["mute"])
+        assert args.command == "mute"
+
+    def test_play_pause(self) -> None:
+        args = build_parser().parse_args(["play-pause"])
+        assert args.command == "play-pause"
+
+    def test_next_track(self) -> None:
+        args = build_parser().parse_args(["next-track"])
+        assert args.command == "next-track"
+
+    def test_prev_track(self) -> None:
+        args = build_parser().parse_args(["prev-track"])
+        assert args.command == "prev-track"
+
     def test_sleep(self) -> None:
         args = build_parser().parse_args(["sleep", "1.5"])
         assert args.seconds == 1.5
@@ -135,6 +167,54 @@ class TestDispatch:
         kb_instance = MockKB.return_value
         main(["escape"])
         kb_instance.escape.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_delete_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["delete"])
+        kb_instance.delete.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_space_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["space"])
+        kb_instance.space.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_volume_up_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["volume-up"])
+        kb_instance.volume_up.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_volume_down_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["volume-down"])
+        kb_instance.volume_down.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_mute_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["mute"])
+        kb_instance.mute.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_play_pause_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["play-pause"])
+        kb_instance.play_pause.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_next_track_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["next-track"])
+        kb_instance.next_track.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_prev_track_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["prev-track"])
+        kb_instance.prev_track.assert_called_once()
 
     @patch("nanokvm_hid.cli.time")
     def test_sleep_dispatches(self, mock_time: MagicMock) -> None:

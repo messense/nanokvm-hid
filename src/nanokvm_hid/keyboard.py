@@ -196,6 +196,42 @@ class Keyboard:
         """Press Escape."""
         self.press("ESCAPE")
 
+    def delete(self) -> None:
+        """Press Delete."""
+        self.press("DELETE")
+
+    def space(self) -> None:
+        """Press Space."""
+        self.press("SPACE")
+
+    # ------------------------------------------------------------------
+    # Media / consumer control shortcuts
+    # ------------------------------------------------------------------
+
+    def volume_up(self) -> None:
+        """Press Volume Up."""
+        self.press("VOLUME_UP")
+
+    def volume_down(self) -> None:
+        """Press Volume Down."""
+        self.press("VOLUME_DOWN")
+
+    def mute(self) -> None:
+        """Press Mute."""
+        self.press("MUTE")
+
+    def play_pause(self) -> None:
+        """Press Play/Pause."""
+        self.press("PLAY_PAUSE")
+
+    def next_track(self) -> None:
+        """Press Next Track."""
+        self.press("SCAN_NEXT_TRACK")
+
+    def prev_track(self) -> None:
+        """Press Previous Track."""
+        self.press("SCAN_PREVIOUS_TRACK")
+
     def hotkey(self, *keys: str) -> None:
         """Press a key combination specified as separate arguments.
 

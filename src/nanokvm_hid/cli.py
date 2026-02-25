@@ -99,6 +99,46 @@ def cmd_escape(args: argparse.Namespace) -> None:
     kb.escape()
 
 
+def cmd_delete(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.delete()
+
+
+def cmd_space(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.space()
+
+
+def cmd_volume_up(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.volume_up()
+
+
+def cmd_volume_down(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.volume_down()
+
+
+def cmd_mute(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.mute()
+
+
+def cmd_play_pause(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.play_pause()
+
+
+def cmd_next_track(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.next_track()
+
+
+def cmd_prev_track(args: argparse.Namespace) -> None:
+    kb = Keyboard(inter_report_delay=args.delay)
+    kb.prev_track()
+
+
 def cmd_sleep(args: argparse.Namespace) -> None:
     time.sleep(args.seconds)
 
@@ -182,10 +222,20 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("backspace", help="Press Backspace N times")
     p.add_argument("count", type=int, help="Number of backspaces")
 
-    # ── enter / tab / escape ─────────────────────────────────────
+    # ── enter / tab / escape / delete / space ───────────────────
     sub.add_parser("enter", help="Press Enter")
     sub.add_parser("tab", help="Press Tab")
     sub.add_parser("escape", help="Press Escape")
+    sub.add_parser("delete", help="Press Delete")
+    sub.add_parser("space", help="Press Space")
+
+    # ── media / consumer control ─────────────────────────────────
+    sub.add_parser("volume-up", help="Press Volume Up")
+    sub.add_parser("volume-down", help="Press Volume Down")
+    sub.add_parser("mute", help="Press Mute")
+    sub.add_parser("play-pause", help="Press Play/Pause")
+    sub.add_parser("next-track", help="Press Next Track")
+    sub.add_parser("prev-track", help="Press Previous Track")
 
     # ── sleep ────────────────────────────────────────────────────
     p = sub.add_parser("sleep", help="Delay for N seconds")
@@ -279,6 +329,22 @@ def _dispatch(args: argparse.Namespace) -> None:
         cmd_tab(args)
     elif args.command == "escape":
         cmd_escape(args)
+    elif args.command == "delete":
+        cmd_delete(args)
+    elif args.command == "space":
+        cmd_space(args)
+    elif args.command == "volume-up":
+        cmd_volume_up(args)
+    elif args.command == "volume-down":
+        cmd_volume_down(args)
+    elif args.command == "mute":
+        cmd_mute(args)
+    elif args.command == "play-pause":
+        cmd_play_pause(args)
+    elif args.command == "next-track":
+        cmd_next_track(args)
+    elif args.command == "prev-track":
+        cmd_prev_track(args)
     elif args.command == "sleep":
         cmd_sleep(args)
     elif args.command == "capture":
