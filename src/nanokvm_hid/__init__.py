@@ -19,6 +19,7 @@ from __future__ import annotations
 from .constants import CONSUMER_CODES, KEYCODES, MODIFIER_MASKS, MouseButton
 from .keyboard import Keyboard, parse_combo
 from .mouse import Mouse
+from .screen import Screen
 from .transport import (
     DEFAULT_KEYBOARD_DEVICE,
     DEFAULT_MOUSE_DEVICE,
@@ -30,6 +31,7 @@ __all__ = [
     # High-level API
     "Keyboard",
     "Mouse",
+    "Screen",
     # Lower-level
     "HIDTransport",
     "parse_combo",

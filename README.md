@@ -8,6 +8,7 @@ The NanoKVM Pro sits between a host computer and its peripherals, exposing USB H
 
 - **Keyboard** — key combos (`CTRL+C`, `ALT+F4`, `GUI+L`), media keys (`VOLUME_UP`), string typing
 - **Mouse** — absolute positioning, left/right click, double-click, scroll, drag
+- **Screen capture** — grab JPEG screenshots from the HDMI video stream
 - **Pure Python** — no dependencies beyond the standard library
 - **OS-agnostic target** — works on any OS the KVM-controlled computer runs (Windows, Linux, macOS, BIOS, UEFI…)
 
@@ -75,6 +76,28 @@ All coordinates are **normalised** to `[0.0, 1.0]` relative to screen dimensions
 | `scroll_down(steps)` | Scroll down |
 | `scroll_up(steps)` | Scroll up |
 | `drag(x0, y0, x1, y1)` | Drag from start to end position |
+
+### `Screen(url="https://localhost/api/stream/mjpeg", timeout=10)`
+
+Capture screenshots from the NanoKVM's HDMI video stream:
+
+```python
+from nanokvm_hid import Screen
+
+screen = Screen()
+
+# Capture as raw JPEG bytes
+jpeg_data = screen.capture()
+
+# Save to file
+screen.capture_to_file("screenshot.jpg")
+
+# Get as base64 string (for VLM APIs)
+b64 = screen.capture_base64()
+
+# Read screen resolution
+w, h = screen.screen_size()
+```
 
 ### `HIDTransport(device_path)`
 

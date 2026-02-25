@@ -9,6 +9,7 @@ import time
 
 from .keyboard import Keyboard
 from .mouse import Mouse
+from .screen import Screen
 from .transport import (
     DEFAULT_KEYBOARD_DEVICE,
     DEFAULT_MOUSE_DEVICE,
@@ -102,6 +103,19 @@ def cmd_sleep(args: argparse.Namespace) -> None:
     time.sleep(args.seconds)
 
 
+def cmd_capture(args: argparse.Namespace) -> None:
+    """Capture a screenshot from the MJPEG stream."""
+    screen = Screen(url=args.url)
+    if args.output:
+        path = screen.capture_to_file(args.output)
+        print(f"Saved to {path}")
+    elif args.base64:
+        print(screen.capture_base64())
+    else:
+        # Write raw JPEG to stdout
+        sys.stdout.buffer.write(screen.capture())
+
+
 def cmd_script(args: argparse.Namespace) -> None:
     """Run a sequence of nanokvm-hid commands from a file or stdin."""
     if args.file:
@@ -177,6 +191,25 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("sleep", help="Delay for N seconds")
     p.add_argument("seconds", type=float, help="Duration (supports decimals, e.g. 0.5)")
 
+    # ── capture ──────────────────────────────────────────────────
+    p = sub.add_parser("capture", help="Capture a screenshot from the HDMI stream")
+    p.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Save to file (e.g. screenshot.jpg)",
+    )
+    p.add_argument(
+        "--base64",
+        action="store_true",
+        help="Output as base64-encoded string",
+    )
+    p.add_argument(
+        "--url",
+        default="https://localhost/api/stream/mjpeg",
+        help="MJPEG stream URL (default: https://localhost/api/stream/mjpeg)",
+    )
+
     # ── script ───────────────────────────────────────────────────
     p = sub.add_parser(
         "script",
@@ -248,6 +281,8 @@ def _dispatch(args: argparse.Namespace) -> None:
         cmd_escape(args)
     elif args.command == "sleep":
         cmd_sleep(args)
+    elif args.command == "capture":
+        cmd_capture(args)
     elif args.command == "script":
         cmd_script(args)
     elif args.command == "mouse":
@@ -271,7 +306,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         _dispatch(args)
-    except (FileNotFoundError, PermissionError, OSError) as exc:
+    except (FileNotFoundError, PermissionError, ConnectionError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except ValueError as exc:

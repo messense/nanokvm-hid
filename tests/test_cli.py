@@ -178,6 +178,26 @@ class TestDispatch:
         m.drag.assert_called_once_with(0.1, 0.2, 0.8, 0.9)
 
 
+class TestParserCapture:
+    def test_capture_defaults(self) -> None:
+        args = build_parser().parse_args(["capture"])
+        assert args.command == "capture"
+        assert args.output is None
+        assert not args.base64
+
+    def test_capture_output(self) -> None:
+        args = build_parser().parse_args(["capture", "-o", "shot.jpg"])
+        assert args.output == "shot.jpg"
+
+    def test_capture_base64(self) -> None:
+        args = build_parser().parse_args(["capture", "--base64"])
+        assert args.base64
+
+    def test_capture_custom_url(self) -> None:
+        args = build_parser().parse_args(["capture", "--url", "https://host/stream"])
+        assert args.url == "https://host/stream"
+
+
 class TestScript:
     @patch("nanokvm_hid.cli.Keyboard")
     @patch("nanokvm_hid.cli.Mouse")
