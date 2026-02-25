@@ -8,8 +8,8 @@ from pathlib import Path
 
 from .constants import (
     CONSUMER_CODES,
-    KEYCODES,
     KEYBOARD_REPORT_SIZE,
+    KEYCODES,
     MODIFIER_MASKS,
     char_to_key_descriptor,
 )
@@ -46,15 +46,11 @@ def parse_combo(key_combo: str) -> tuple[int, int | None, bool]:
             modifier_mask |= MODIFIER_MASKS[part]
         elif part in KEYCODES:
             if main_key is not None:
-                raise ValueError(
-                    f"Multiple non-modifier keys in combo {key_combo!r}"
-                )
+                raise ValueError(f"Multiple non-modifier keys in combo {key_combo!r}")
             main_key = KEYCODES[part]
         elif part in CONSUMER_CODES:
             if main_key is not None:
-                raise ValueError(
-                    f"Multiple non-modifier keys in combo {key_combo!r}"
-                )
+                raise ValueError(f"Multiple non-modifier keys in combo {key_combo!r}")
             main_key = CONSUMER_CODES[part]
             is_consumer = True
         else:
@@ -63,9 +59,7 @@ def parse_combo(key_combo: str) -> tuple[int, int | None, bool]:
     return modifier_mask, main_key, is_consumer
 
 
-def _build_keyboard_reports(
-    modifier_mask: int, keycode: int | None
-) -> list[bytes]:
+def _build_keyboard_reports(modifier_mask: int, keycode: int | None) -> list[bytes]:
     """Build the press-then-release sequence for a standard keyboard key."""
     if keycode is None:
         # Modifier-only press (e.g. just "SHIFT")

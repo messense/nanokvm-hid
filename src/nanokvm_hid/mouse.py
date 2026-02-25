@@ -88,7 +88,8 @@ class Mouse:
         self._touchpad.send(report)
         logger.debug(
             "touchpad  (%.3f, %.3f) → pixel (%d, %d)",
-            x_norm, y_norm,
+            x_norm,
+            y_norm,
             int(x_norm * self._screen_w),
             int(y_norm * self._screen_h),
         )
@@ -119,7 +120,8 @@ class Mouse:
         self._send_touchpad(x, y)
         logger.info(
             "move  (%.3f, %.3f) → pixel (%d, %d)",
-            x, y,
+            x,
+            y,
             int(x * self._screen_w),
             int(y * self._screen_h),
         )
@@ -254,9 +256,7 @@ class Mouse:
 
         # Release
         self._send_mouse()
-        logger.info(
-            "drag  (%.3f,%.3f) → (%.3f,%.3f)", x0, y0, x1, y1
-        )
+        logger.info("drag  (%.3f,%.3f) → (%.3f,%.3f)", x0, y0, x1, y1)
 
     # ------------------------------------------------------------------
     # Utilities

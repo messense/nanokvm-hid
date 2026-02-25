@@ -5,6 +5,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Standard HID keyboard usage codes (USB HID Usage Tables §10)
 # ---------------------------------------------------------------------------
+# fmt: off
 KEYCODES: dict[str, int] = {
     # Letters
     "A": 0x04, "B": 0x05, "C": 0x06, "D": 0x07, "E": 0x08,
@@ -38,9 +39,6 @@ KEYCODES: dict[str, int] = {
     "RIGHT_ALT": 0xE6, "RIGHT_GUI": 0xE7,
 }
 
-# ---------------------------------------------------------------------------
-# Modifier bitmap (byte 0 of the 8‑byte keyboard report)
-# ---------------------------------------------------------------------------
 MODIFIER_MASKS: dict[str, int] = {
     # Generic aliases
     "CTRL": 0x01, "SHIFT": 0x02, "ALT": 0x04, "GUI": 0x08,
@@ -53,10 +51,6 @@ MODIFIER_MASKS: dict[str, int] = {
     "RIGHT_ALT": 0x40, "RIGHT_GUI": 0x80,
 }
 
-# ---------------------------------------------------------------------------
-# Consumer‑control usage codes (USB HID Usage Tables §15)
-# Used for media / system keys; sent on a separate 2‑byte report.
-# ---------------------------------------------------------------------------
 CONSUMER_CODES: dict[str, int] = {
     # Media
     "PLAY_PAUSE": 0xCD, "SCAN_NEXT_TRACK": 0xB5,
@@ -74,6 +68,7 @@ CONSUMER_CODES: dict[str, int] = {
     "CALCULATOR": 0x192, "EMAIL": 0x18A,
     "BROWSER": 0x196, "FILE_EXPLORER": 0x194,
 }
+# fmt: on
 
 # ---------------------------------------------------------------------------
 # Character‑to‑key descriptor mapping (for typestr)
@@ -108,8 +103,10 @@ def char_to_key_descriptor(char: str) -> str | None:
 # Mouse button values
 # ---------------------------------------------------------------------------
 
+
 class MouseButton:
     """Mouse button constants for the HID report."""
+
     NONE = 0
     LEFT = 1
     RIGHT = 2
@@ -118,10 +115,10 @@ class MouseButton:
 # ---------------------------------------------------------------------------
 # HID report sizes
 # ---------------------------------------------------------------------------
-KEYBOARD_REPORT_SIZE = 8   # 8-byte boot keyboard report
-CONSUMER_REPORT_SIZE = 2   # 2-byte consumer control report
-MOUSE_REPORT_SIZE = 4      # [buttons, dx, dy, wheel]
-TOUCHPAD_REPORT_SIZE = 6   # [0x00, x_lo, x_hi, y_lo, y_hi, 0x00]
+KEYBOARD_REPORT_SIZE = 8  # 8-byte boot keyboard report
+CONSUMER_REPORT_SIZE = 2  # 2-byte consumer control report
+MOUSE_REPORT_SIZE = 4  # [buttons, dx, dy, wheel]
+TOUCHPAD_REPORT_SIZE = 6  # [0x00, x_lo, x_hi, y_lo, y_hi, 0x00]
 
 # Absolute coordinate range for the touchpad HID descriptor (0–0x7FFF)
 ABS_COORD_MAX = 0x7FFF

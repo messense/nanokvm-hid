@@ -125,15 +125,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     # mouse click
     p = msub.add_parser("click", help="Click at position")
-    p.add_argument("x", type=float, nargs="?", default=0.0, help="X (default: 0 = don't move)")
-    p.add_argument("y", type=float, nargs="?", default=0.0, help="Y (default: 0 = don't move)")
+    p.add_argument(
+        "x", type=float, nargs="?", default=0.0, help="X (default: 0 = don't move)"
+    )
+    p.add_argument(
+        "y", type=float, nargs="?", default=0.0, help="Y (default: 0 = don't move)"
+    )
     p.add_argument("-r", "--right", action="store_true", help="Right-click")
     p.add_argument("-d", "--double", action="store_true", help="Double-click")
 
     # mouse scroll
     for direction in ("scroll-up", "scroll-down"):
         p = msub.add_parser(direction, help=f"Scroll {direction.split('-')[1]}")
-        p.add_argument("steps", type=int, nargs="?", default=1, help="Number of steps (default: 1)")
+        p.add_argument(
+            "steps", type=int, nargs="?", default=1, help="Number of steps (default: 1)"
+        )
 
     # mouse drag
     p = msub.add_parser("drag", help="Drag from (x0,y0) to (x1,y1)")
