@@ -129,8 +129,13 @@ def _cmd_info() -> None:
 
 
 def _cmd_capture(args: argparse.Namespace) -> None:
-    """Capture a screenshot from the MJPEG stream."""
-    screen = Screen(url=args.url)
+    """Capture a screenshot."""
+    screen = Screen(
+        url=args.url,
+        pikvm=args.pikvm,
+        pikvm_username=args.pikvm_username,
+        pikvm_password=args.pikvm_password,
+    )
     if args.output:
         path = screen.capture_to_file(args.output)
         print(f"Saved to {path}")
@@ -237,6 +242,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--url",
         default="https://localhost/api/stream/mjpeg",
         help="MJPEG stream URL (default: https://localhost/api/stream/mjpeg)",
+    )
+    p.add_argument(
+        "--pikvm",
+        action="store_true",
+        help="Use PiKVM snapshot API instead of MJPEG stream",
+    )
+    p.add_argument(
+        "--pikvm-username",
+        default="admin",
+        help="PiKVM Basic Auth username (default: admin)",
+    )
+    p.add_argument(
+        "--pikvm-password",
+        default="admin",
+        help="PiKVM Basic Auth password (default: admin)",
     )
 
     # ── script ───────────────────────────────────────────────────

@@ -1,7 +1,8 @@
-"""Screen capture via the NanoKVM's MJPEG video stream."""
+"""Screen capture via the NanoKVM's MJPEG video stream or PiKVM snapshot API."""
 
 from __future__ import annotations
 
+import base64
 import logging
 import ssl
 import urllib.request
@@ -10,6 +11,11 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DEFAULT_MJPEG_URL = "https://localhost/api/stream/mjpeg"
+DEFAULT_PIKVM_SNAPSHOT_URL = (
+    "https://localhost/api/streamer/snapshot?save=1&preview_quality=95"
+)
+DEFAULT_PIKVM_USERNAME = "admin"
+DEFAULT_PIKVM_PASSWORD = "admin"
 
 # Screen resolution source on NanoKVM (LT6911 HDMI capture chip)
 _SCREEN_WIDTH_PATH = "/proc/lt6911_info/width"
@@ -19,7 +25,7 @@ _SCREEN_HEIGHT_PATH = "/proc/lt6911_info/height"
 def _make_ssl_context() -> ssl.SSLContext:
     """Create an SSL context that skips certificate verification.
 
-    The NanoKVM serves its MJPEG stream over HTTPS with a self-signed
+    The NanoKVM serves its streams over HTTPS with a self-signed
     certificate, so verification must be disabled for localhost access.
     """
     ctx = ssl.create_default_context()
@@ -45,25 +51,53 @@ def screen_size() -> tuple[int, int]:
 class Screen:
     """Capture screenshots from the NanoKVM's HDMI video stream.
 
+    Supports two capture backends:
+
+    * **MJPEG** (default) — grabs a frame from the live MJPEG stream.
+      Works with the NanoKVM's native firmware.
+    * **PiKVM snapshot API** — uses the ``/api/streamer/snapshot``
+      endpoint with HTTP Basic Auth.  Works when the NanoKVM is running
+      in PiKVM-compatible mode.
+
     Parameters
     ----------
     url:
-        URL of the MJPEG stream endpoint.
+        URL of the MJPEG stream endpoint (used by default).
     timeout:
         HTTP request timeout in seconds.
+    pikvm:
+        If ``True``, use the PiKVM snapshot API instead of MJPEG.
+    pikvm_url:
+        URL of the PiKVM snapshot endpoint.
+    pikvm_username:
+        HTTP Basic Auth username for the PiKVM API.
+    pikvm_password:
+        HTTP Basic Auth password for the PiKVM API.
     """
 
     def __init__(
         self,
         url: str = DEFAULT_MJPEG_URL,
         timeout: float = 10,
+        *,
+        pikvm: bool = False,
+        pikvm_url: str = DEFAULT_PIKVM_SNAPSHOT_URL,
+        pikvm_username: str = DEFAULT_PIKVM_USERNAME,
+        pikvm_password: str = DEFAULT_PIKVM_PASSWORD,
     ) -> None:
         self.url = url
         self.timeout = timeout
+        self.pikvm = pikvm
+        self.pikvm_url = pikvm_url
+        self.pikvm_username = pikvm_username
+        self.pikvm_password = pikvm_password
         self._ssl_ctx = _make_ssl_context()
 
     def capture(self) -> bytes:
-        """Capture a single JPEG frame from the MJPEG stream.
+        """Capture a single JPEG screenshot.
+
+        Uses the PiKVM snapshot API if ``pikvm=True`` was set, otherwise
+        grabs a frame from the MJPEG stream.
 
         Returns
         -------
@@ -73,10 +107,43 @@ class Screen:
         Raises
         ------
         ConnectionError
-            If the stream cannot be reached.
+            If the endpoint cannot be reached.
         ValueError
-            If no valid JPEG frame is found.
+            If no valid JPEG data is found.
         """
+        if self.pikvm:
+            return self._capture_pikvm()
+        return self._capture_mjpeg()
+
+    def _capture_pikvm(self) -> bytes:
+        """Capture via the PiKVM snapshot API."""
+        credentials = f"{self.pikvm_username}:{self.pikvm_password}"
+        auth_header = "Basic " + base64.b64encode(credentials.encode()).decode("ascii")
+
+        req = urllib.request.Request(self.pikvm_url)
+        req.add_header("Authorization", auth_header)
+
+        try:
+            resp = urllib.request.urlopen(
+                req, timeout=self.timeout, context=self._ssl_ctx
+            )
+            data = resp.read()
+        except (urllib.error.URLError, OSError) as exc:
+            raise ConnectionError(
+                f"Cannot connect to PiKVM snapshot API: {exc}"
+            ) from exc
+
+        if len(data) < 3 or data[:2] != b"\xff\xd8":
+            raise ValueError(
+                f"PiKVM snapshot did not return a valid JPEG "
+                f"(got {len(data)} bytes, starts with {data[:20]!r})"
+            )
+
+        logger.info("Captured PiKVM snapshot: %d bytes", len(data))
+        return data
+
+    def _capture_mjpeg(self) -> bytes:
+        """Capture a single JPEG frame from the MJPEG stream."""
         try:
             req = urllib.request.Request(self.url)
             resp = urllib.request.urlopen(
@@ -119,7 +186,7 @@ class Screen:
                     )
                     if jpeg_start != -1 and jpeg_end != -1:
                         jpeg_bytes = frame_data[jpeg_start : jpeg_end + 2]
-                        logger.info("Captured frame: %d bytes", len(jpeg_bytes))
+                        logger.info("Captured MJPEG frame: %d bytes", len(jpeg_bytes))
                         return jpeg_bytes
 
                     max_frames -= 1
@@ -152,8 +219,6 @@ class Screen:
 
     def capture_base64(self) -> str:
         """Capture a screenshot and return it as a base64-encoded string."""
-        import base64
-
         return base64.b64encode(self.capture()).decode("ascii")
 
     @staticmethod
@@ -162,4 +227,6 @@ class Screen:
         return screen_size()
 
     def __repr__(self) -> str:
-        return f"Screen(url={self.url!r})"
+        mode = "pikvm" if self.pikvm else "mjpeg"
+        url = self.pikvm_url if self.pikvm else self.url
+        return f"Screen(mode={mode!r}, url={url!r})"

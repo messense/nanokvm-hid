@@ -134,3 +134,84 @@ class TestCapture:
             pytest.raises(ValueError, match="Unexpected Content-Type"),
         ):
             screen.capture()
+
+
+class TestPiKVMCapture:
+    def test_capture_pikvm_returns_jpeg(self) -> None:
+        resp = io.BytesIO(TINY_JPEG)
+        resp.read = lambda: TINY_JPEG
+        resp.close = lambda: None
+
+        screen = Screen(pikvm=True)
+        with patch("nanokvm_hid.screen.urllib.request.urlopen", return_value=resp):
+            result = screen.capture()
+
+        assert result[:2] == b"\xff\xd8"
+        assert result[-2:] == b"\xff\xd9"
+
+    def test_capture_pikvm_to_file(self, tmp_path: Path) -> None:
+        resp = io.BytesIO(TINY_JPEG)
+        resp.read = lambda: TINY_JPEG
+        resp.close = lambda: None
+
+        screen = Screen(pikvm=True)
+        out = tmp_path / "pikvm.jpg"
+        with patch("nanokvm_hid.screen.urllib.request.urlopen", return_value=resp):
+            result_path = screen.capture_to_file(out)
+
+        assert result_path.exists()
+        assert out.read_bytes()[:2] == b"\xff\xd8"
+
+    def test_capture_pikvm_invalid_data_raises(self) -> None:
+        resp = io.BytesIO(b"not a jpeg")
+        resp.read = lambda: b"not a jpeg"
+        resp.close = lambda: None
+
+        screen = Screen(pikvm=True)
+        with (
+            patch("nanokvm_hid.screen.urllib.request.urlopen", return_value=resp),
+            pytest.raises(ValueError, match="did not return a valid JPEG"),
+        ):
+            screen.capture()
+
+    def test_capture_pikvm_connection_error(self) -> None:
+        import urllib.error
+
+        screen = Screen(pikvm=True)
+        with (
+            patch(
+                "nanokvm_hid.screen.urllib.request.urlopen",
+                side_effect=urllib.error.URLError("refused"),
+            ),
+            pytest.raises(ConnectionError, match="PiKVM"),
+        ):
+            screen.capture()
+
+    def test_capture_pikvm_custom_credentials(self) -> None:
+        screen = Screen(
+            pikvm=True,
+            pikvm_username="user",
+            pikvm_password="pass123",
+        )
+        assert screen.pikvm_username == "user"
+        assert screen.pikvm_password == "pass123"
+
+    def test_capture_pikvm_sends_basic_auth(self) -> None:
+        resp = io.BytesIO(TINY_JPEG)
+        resp.read = lambda: TINY_JPEG
+        resp.close = lambda: None
+
+        screen = Screen(pikvm=True, pikvm_username="admin", pikvm_password="secret")
+        with patch(
+            "nanokvm_hid.screen.urllib.request.urlopen", return_value=resp
+        ) as mock_urlopen:
+            screen.capture()
+
+        req = mock_urlopen.call_args[0][0]
+        auth = req.get_header("Authorization")
+        assert auth is not None
+        assert auth.startswith("Basic ")
+        import base64
+
+        decoded = base64.b64decode(auth.split(" ", 1)[1]).decode()
+        assert decoded == "admin:secret"

@@ -277,6 +277,17 @@ class TestParserCapture:
         args = build_parser().parse_args(["capture", "--url", "https://host/stream"])
         assert args.url == "https://host/stream"
 
+    def test_capture_pikvm(self) -> None:
+        args = build_parser().parse_args(["capture", "--pikvm"])
+        assert args.pikvm
+
+    def test_capture_pikvm_credentials(self) -> None:
+        args = build_parser().parse_args(
+            ["capture", "--pikvm", "--pikvm-username", "user", "--pikvm-password", "pw"]
+        )
+        assert args.pikvm_username == "user"
+        assert args.pikvm_password == "pw"
+
 
 class TestScript:
     @patch("nanokvm_hid.cli.Keyboard")
