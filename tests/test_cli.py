@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,6 +30,30 @@ class TestParser:
     def test_backspace(self) -> None:
         args = build_parser().parse_args(["backspace", "5"])
         assert args.count == 5
+
+    def test_enter(self) -> None:
+        args = build_parser().parse_args(["enter"])
+        assert args.command == "enter"
+
+    def test_tab(self) -> None:
+        args = build_parser().parse_args(["tab"])
+        assert args.command == "tab"
+
+    def test_escape(self) -> None:
+        args = build_parser().parse_args(["escape"])
+        assert args.command == "escape"
+
+    def test_sleep(self) -> None:
+        args = build_parser().parse_args(["sleep", "1.5"])
+        assert args.seconds == 1.5
+
+    def test_script_with_file(self) -> None:
+        args = build_parser().parse_args(["script", "commands.txt"])
+        assert args.file == "commands.txt"
+
+    def test_script_no_file(self) -> None:
+        args = build_parser().parse_args(["script"])
+        assert args.file is None
 
     def test_mouse_move(self) -> None:
         args = build_parser().parse_args(["mouse", "move", "0.5", "0.3"])
@@ -93,6 +118,29 @@ class TestDispatch:
         main(["backspace", "3"])
         kb_instance.backspace.assert_called_once_with(3)
 
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_enter_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["enter"])
+        kb_instance.enter.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_tab_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["tab"])
+        kb_instance.tab.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_escape_dispatches(self, MockKB: MagicMock) -> None:
+        kb_instance = MockKB.return_value
+        main(["escape"])
+        kb_instance.escape.assert_called_once()
+
+    @patch("nanokvm_hid.cli.time")
+    def test_sleep_dispatches(self, mock_time: MagicMock) -> None:
+        main(["sleep", "0.5"])
+        mock_time.sleep.assert_called_once_with(0.5)
+
     @patch("nanokvm_hid.cli.Mouse")
     def test_mouse_move_dispatches(self, MockMouse: MagicMock) -> None:
         m = MockMouse.return_value
@@ -128,3 +176,73 @@ class TestDispatch:
         m = MockMouse.return_value
         main(["mouse", "drag", "0.1", "0.2", "0.8", "0.9"])
         m.drag.assert_called_once_with(0.1, 0.2, 0.8, 0.9)
+
+
+class TestScript:
+    @patch("nanokvm_hid.cli.Keyboard")
+    @patch("nanokvm_hid.cli.Mouse")
+    @patch("nanokvm_hid.cli.time")
+    def test_script_from_file(
+        self,
+        mock_time: MagicMock,
+        MockMouse: MagicMock,
+        MockKB: MagicMock,
+        tmp_path: MagicMock,
+    ) -> None:
+        script = tmp_path / "test.script"
+        script.write_text(
+            textwrap.dedent("""\
+            # Move to center and click
+            mouse move 0.5 0.5
+            mouse click 0.5 0.5
+            sleep 1
+            type "hello world"
+            enter
+        """)
+        )
+
+        main(["script", str(script)])
+
+        m = MockMouse.return_value
+        kb = MockKB.return_value
+        m.move.assert_called_once_with(0.5, 0.5)
+        m.left_click.assert_called_once_with(0.5, 0.5)
+        mock_time.sleep.assert_any_call(1.0)
+        kb.type.assert_called_once_with("hello world")
+        kb.enter.assert_called_once()
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    def test_script_skips_blanks_and_comments(
+        self, MockKB: MagicMock, tmp_path: MagicMock
+    ) -> None:
+        script = tmp_path / "test.script"
+        script.write_text(
+            textwrap.dedent("""\
+            # this is a comment
+
+            key A
+
+            # another comment
+        """)
+        )
+
+        main(["script", str(script)])
+        MockKB.return_value.press.assert_called_once_with("A")
+
+    @patch("nanokvm_hid.cli.Keyboard")
+    @patch("nanokvm_hid.cli.Mouse")
+    @patch("nanokvm_hid.cli.time")
+    def test_script_from_stdin(
+        self,
+        mock_time: MagicMock,
+        MockMouse: MagicMock,
+        MockKB: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import io
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("key CTRL+C\nsleep 0.5\n"))
+        main(["script"])
+
+        MockKB.return_value.press.assert_called_once_with("CTRL+C")
+        mock_time.sleep.assert_any_call(0.5)

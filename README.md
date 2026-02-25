@@ -102,6 +102,9 @@ nanokvm-hid key ALT+F4
 nanokvm-hid key CTRL+A BACKSPACE           # multiple combos in sequence
 nanokvm-hid type "hello world"
 nanokvm-hid backspace 5
+nanokvm-hid enter
+nanokvm-hid tab
+nanokvm-hid escape
 
 # Mouse (coordinates are normalised 0.0–1.0)
 nanokvm-hid mouse move 0.5 0.5             # move to center
@@ -112,8 +115,33 @@ nanokvm-hid mouse scroll-down 3
 nanokvm-hid mouse scroll-up
 nanokvm-hid mouse drag 0.1 0.1 0.9 0.9
 
+# Delay
+nanokvm-hid sleep 1.5
+
 # Options
 nanokvm-hid --delay 0.05 type "fast typing"
+```
+
+### Scripting
+
+Run a sequence of commands from a file (or pipe from stdin):
+
+```bash
+nanokvm-hid script commands.txt
+echo 'key CTRL+C' | nanokvm-hid script
+```
+
+Script files support comments and blank lines:
+
+```bash
+# login.script — unlock a workstation
+mouse click 0.5 0.5
+sleep 0.5
+type "mypassword"
+enter
+sleep 2
+# open a terminal
+key CTRL+ALT+T
 ```
 
 ## Supported Keys
