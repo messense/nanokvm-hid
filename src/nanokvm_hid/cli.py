@@ -18,7 +18,100 @@ from .transport import (
 )
 
 
-def cmd_info(args: argparse.Namespace) -> None:
+class _Session:
+    """Lazily-initialised device handles, created once and reused."""
+
+    def __init__(self, delay: float = 0.02) -> None:
+        self.delay = delay
+        self._keyboard: Keyboard | None = None
+        self._mouse: Mouse | None = None
+
+    @property
+    def keyboard(self) -> Keyboard:
+        if self._keyboard is None:
+            self._keyboard = Keyboard(inter_report_delay=self.delay)
+        return self._keyboard
+
+    @property
+    def mouse(self) -> Mouse:
+        if self._mouse is None:
+            self._mouse = Mouse()
+        return self._mouse
+
+
+def _dispatch(args: argparse.Namespace, session: _Session) -> None:
+    """Dispatch a parsed command using shared device handles."""
+    cmd = args.command
+
+    if cmd == "info":
+        _cmd_info()
+    elif cmd == "key":
+        for combo in args.combo:
+            session.keyboard.press(combo)
+            if len(args.combo) > 1:
+                time.sleep(session.delay)
+    elif cmd == "type":
+        session.keyboard.type(args.text)
+    elif cmd == "backspace":
+        session.keyboard.backspace(args.count)
+    elif cmd == "enter":
+        session.keyboard.enter()
+    elif cmd == "tab":
+        session.keyboard.tab()
+    elif cmd == "escape":
+        session.keyboard.escape()
+    elif cmd == "delete":
+        session.keyboard.delete()
+    elif cmd == "space":
+        session.keyboard.space()
+    elif cmd == "volume-up":
+        session.keyboard.volume_up()
+    elif cmd == "volume-down":
+        session.keyboard.volume_down()
+    elif cmd == "mute":
+        session.keyboard.mute()
+    elif cmd == "play-pause":
+        session.keyboard.play_pause()
+    elif cmd == "next-track":
+        session.keyboard.next_track()
+    elif cmd == "prev-track":
+        session.keyboard.prev_track()
+    elif cmd == "sleep":
+        time.sleep(args.seconds)
+    elif cmd == "capture":
+        _cmd_capture(args)
+    elif cmd == "script":
+        _cmd_script(args, session)
+    elif cmd == "mouse":
+        _dispatch_mouse(args, session)
+
+
+def _dispatch_mouse(args: argparse.Namespace, session: _Session) -> None:
+    """Dispatch mouse subcommands."""
+    from .constants import MouseButton
+
+    mouse = session.mouse
+    sub = args.mouse_command
+
+    if sub == "move":
+        mouse.move(args.x, args.y)
+    elif sub == "click":
+        if args.double:
+            button = MouseButton.RIGHT if args.right else MouseButton.LEFT
+            mouse.double_click(args.x, args.y, button=button)
+        elif args.right:
+            mouse.right_click(args.x, args.y)
+        else:
+            mouse.left_click(args.x, args.y)
+    elif sub == "scroll-down":
+        mouse.scroll_down(args.steps)
+    elif sub == "scroll-up":
+        mouse.scroll_up(args.steps)
+    elif sub == "drag":
+        mouse.drag(args.x0, args.y0, args.x1, args.y1)
+
+
+def _cmd_info() -> None:
     """Show device status and screen resolution."""
     devices = [
         ("Keyboard", DEFAULT_KEYBOARD_DEVICE),
@@ -35,115 +128,7 @@ def cmd_info(args: argparse.Namespace) -> None:
     print(f"  {'Screen':10s}  {w}×{h}")
 
 
-def cmd_mouse_move(args: argparse.Namespace) -> None:
-    mouse = Mouse()
-    mouse.move(args.x, args.y)
-
-
-def cmd_mouse_click(args: argparse.Namespace) -> None:
-    from .constants import MouseButton
-
-    mouse = Mouse()
-    if args.double:
-        button = MouseButton.RIGHT if args.right else MouseButton.LEFT
-        mouse.double_click(args.x, args.y, button=button)
-    elif args.right:
-        mouse.right_click(args.x, args.y)
-    else:
-        mouse.left_click(args.x, args.y)
-
-
-def cmd_mouse_scroll(args: argparse.Namespace) -> None:
-    mouse = Mouse()
-    if args.direction == "down":
-        mouse.scroll_down(args.steps)
-    else:
-        mouse.scroll_up(args.steps)
-
-
-def cmd_mouse_drag(args: argparse.Namespace) -> None:
-    mouse = Mouse()
-    mouse.drag(args.x0, args.y0, args.x1, args.y1)
-
-
-def cmd_key(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    for combo in args.combo:
-        kb.press(combo)
-        if len(args.combo) > 1:
-            time.sleep(args.delay)
-
-
-def cmd_type(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.type(args.text)
-
-
-def cmd_backspace(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.backspace(args.count)
-
-
-def cmd_enter(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.enter()
-
-
-def cmd_tab(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.tab()
-
-
-def cmd_escape(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.escape()
-
-
-def cmd_delete(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.delete()
-
-
-def cmd_space(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.space()
-
-
-def cmd_volume_up(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.volume_up()
-
-
-def cmd_volume_down(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.volume_down()
-
-
-def cmd_mute(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.mute()
-
-
-def cmd_play_pause(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.play_pause()
-
-
-def cmd_next_track(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.next_track()
-
-
-def cmd_prev_track(args: argparse.Namespace) -> None:
-    kb = Keyboard(inter_report_delay=args.delay)
-    kb.prev_track()
-
-
-def cmd_sleep(args: argparse.Namespace) -> None:
-    time.sleep(args.seconds)
-
-
-def cmd_capture(args: argparse.Namespace) -> None:
+def _cmd_capture(args: argparse.Namespace) -> None:
     """Capture a screenshot from the MJPEG stream."""
     screen = Screen(url=args.url)
     if args.output:
@@ -152,11 +137,10 @@ def cmd_capture(args: argparse.Namespace) -> None:
     elif args.base64:
         print(screen.capture_base64())
     else:
-        # Write raw JPEG to stdout
         sys.stdout.buffer.write(screen.capture())
 
 
-def cmd_script(args: argparse.Namespace) -> None:
+def _cmd_script(args: argparse.Namespace, session: _Session) -> None:
     """Run a sequence of nanokvm-hid commands from a file or stdin."""
     if args.file:
         with open(args.file) as f:
@@ -168,7 +152,6 @@ def cmd_script(args: argparse.Namespace) -> None:
 
     for lineno, raw_line in enumerate(lines, 1):
         line = raw_line.strip()
-        # Skip blanks and comments
         if not line or line.startswith("#"):
             continue
         try:
@@ -183,11 +166,7 @@ def cmd_script(args: argparse.Namespace) -> None:
             print(f"Error: line {lineno}: invalid command: {line}", file=sys.stderr)
             sys.exit(1)
 
-        # Inherit global --delay from the outer invocation
-        if not hasattr(script_args, "delay") or script_args.delay == 0.02:
-            script_args.delay = args.delay
-
-        _dispatch(script_args)
+        _dispatch(script_args, session)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -313,65 +292,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _dispatch(args: argparse.Namespace) -> None:
-    """Dispatch a parsed command."""
-    if args.command == "info":
-        cmd_info(args)
-    elif args.command == "key":
-        cmd_key(args)
-    elif args.command == "type":
-        cmd_type(args)
-    elif args.command == "backspace":
-        cmd_backspace(args)
-    elif args.command == "enter":
-        cmd_enter(args)
-    elif args.command == "tab":
-        cmd_tab(args)
-    elif args.command == "escape":
-        cmd_escape(args)
-    elif args.command == "delete":
-        cmd_delete(args)
-    elif args.command == "space":
-        cmd_space(args)
-    elif args.command == "volume-up":
-        cmd_volume_up(args)
-    elif args.command == "volume-down":
-        cmd_volume_down(args)
-    elif args.command == "mute":
-        cmd_mute(args)
-    elif args.command == "play-pause":
-        cmd_play_pause(args)
-    elif args.command == "next-track":
-        cmd_next_track(args)
-    elif args.command == "prev-track":
-        cmd_prev_track(args)
-    elif args.command == "sleep":
-        cmd_sleep(args)
-    elif args.command == "capture":
-        cmd_capture(args)
-    elif args.command == "script":
-        cmd_script(args)
-    elif args.command == "mouse":
-        if args.mouse_command == "move":
-            cmd_mouse_move(args)
-        elif args.mouse_command == "click":
-            cmd_mouse_click(args)
-        elif args.mouse_command == "scroll-down":
-            args.direction = "down"
-            cmd_mouse_scroll(args)
-        elif args.mouse_command == "scroll-up":
-            args.direction = "up"
-            cmd_mouse_scroll(args)
-        elif args.mouse_command == "drag":
-            cmd_mouse_drag(args)
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+    session = _Session(delay=args.delay)
 
     try:
-        _dispatch(args)
+        _dispatch(args, session)
     except (FileNotFoundError, PermissionError, ConnectionError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
