@@ -26,12 +26,11 @@ There are two scenarios:
 1. **On the NanoKVM itself** — the HID devices are local at `/dev/hidg0–2`. Install and use directly.
 2. **On a remote machine** (your laptop, a CI server, etc.) — you SSH into the NanoKVM to run commands. The NanoKVM default credentials are `root@<ip>` with an empty password or `root`.
 
-### Install the library
+### Install the library (if not already installed)
 
 ```bash
 # On the NanoKVM (SSH in first if remote)
-ssh root@<NANOKVM_IP>
-pip install nanokvm-hid
+ssh root@<NANOKVM_IP> "command -v nanokvm-hid || pip install nanokvm-hid"
 ```
 
 The library has **zero runtime dependencies** (stdlib only) and works on Python ≥ 3.10.
@@ -40,7 +39,7 @@ The library has **zero runtime dependencies** (stdlib only) and works on Python 
 
 ```bash
 # On the NanoKVM
-nanokvm-hid info
+ssh root@<NANOKVM_IP> "nanokvm-hid info"
 ```
 
 Expected output:
