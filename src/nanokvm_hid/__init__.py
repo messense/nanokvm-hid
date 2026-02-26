@@ -17,21 +17,40 @@ Quick start::
 from __future__ import annotations
 
 from .constants import CONSUMER_CODES, KEYCODES, MODIFIER_MASKS, MouseButton
+from .gpio import GPIO
+from .hdmi import HDMI
+from .hid_manager import get_hid_mode, reset_hid, set_hid_mode
+from .jiggler import Jiggler
 from .keyboard import Keyboard, parse_combo
 from .mouse import Mouse
 from .screen import Screen
+from .storage import Storage
 from .transport import (
     DEFAULT_KEYBOARD_DEVICE,
     DEFAULT_MOUSE_DEVICE,
     DEFAULT_TOUCHPAD_DEVICE,
     HIDTransport,
 )
+from .virtual_devices import VirtualDevices
+from .wol import wake_on_lan
 
 __all__ = [
     # High-level API
     "Keyboard",
     "Mouse",
     "Screen",
+    # KVM device control
+    "GPIO",
+    "HDMI",
+    "Jiggler",
+    "Storage",
+    "VirtualDevices",
+    # HID management
+    "get_hid_mode",
+    "reset_hid",
+    "set_hid_mode",
+    # Network
+    "wake_on_lan",
     # Lower-level
     "HIDTransport",
     "parse_combo",

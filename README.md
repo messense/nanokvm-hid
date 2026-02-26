@@ -1,14 +1,21 @@
 # nanokvm-hid
 
-Python library for controlling keyboard, mouse, and touchpad via USB HID gadgets on [NanoKVM Pro](https://wiki.sipeed.com/nanokvm).
+Python library for controlling [NanoKVM Pro](https://wiki.sipeed.com/nanokvm) hardware via direct device access. Runs on-device on the NanoKVM itself.
 
-The NanoKVM Pro sits between a host computer and its peripherals, exposing USB HID gadget devices (`/dev/hidg0–2`) that allow hardware-level input injection — indistinguishable from a real keyboard and mouse. This library provides a clean, Pythonic API on top of those raw HID interfaces.
+The NanoKVM Pro sits between a host computer and its peripherals, exposing USB HID gadget devices (`/dev/hidg0–2`) that allow hardware-level input injection — indistinguishable from a real keyboard and mouse. This library provides a clean, Pythonic API on top of those raw HID interfaces, plus control of GPIO, HDMI, virtual media, and more.
 
 ## Features
 
 - **Keyboard** — key combos (`CTRL+C`, `ALT+F4`, `GUI+L`), media keys (`VOLUME_UP`), string typing
 - **Mouse** — absolute positioning, left/right click, double-click, scroll, drag
 - **Screen capture** — grab JPEG screenshots from the HDMI video stream
+- **GPIO control** — power/reset button press, power/HDD LED status
+- **Virtual media** — mount/unmount ISO/IMG files as USB drives
+- **HDMI control** — capture on/off, passthrough (loopout), EDID management
+- **Mouse jiggler** — background keep-alive with relative/absolute modes
+- **HID management** — reset stuck USB gadgets, switch normal/hid-only mode
+- **Virtual USB devices** — toggle network adapter (NCM), microphone (UAC2), disk (SD/eMMC)
+- **Wake-on-LAN** — send magic packets to power on machines
 - **Pure Python** — no dependencies beyond the standard library
 - **OS-agnostic target** — works on any OS the KVM-controlled computer runs (Windows, Linux, macOS, BIOS, UEFI…)
 
@@ -79,24 +86,96 @@ All coordinates are **normalised** to `[0.0, 1.0]` relative to screen dimensions
 
 ### `Screen(url="https://localhost/api/stream/mjpeg", timeout=10)`
 
-Capture screenshots from the NanoKVM's HDMI video stream:
-
 ```python
 from nanokvm_hid import Screen
 
 screen = Screen()
+jpeg_data = screen.capture()          # raw JPEG bytes
+screen.capture_to_file("shot.jpg")    # save to file
+b64 = screen.capture_base64()         # base64 (for VLM APIs)
+w, h = screen.screen_size()           # read resolution
+```
 
-# Capture as raw JPEG bytes
-jpeg_data = screen.capture()
+### `GPIO()`
 
-# Save to file
-screen.capture_to_file("screenshot.jpg")
+```python
+from nanokvm_hid import GPIO
 
-# Get as base64 string (for VLM APIs)
-b64 = screen.capture_base64()
+gpio = GPIO()
+gpio.power()                    # short press (800ms)
+gpio.power_off()                # long press (5s)
+gpio.reset()                    # reset button press
+print(gpio.power_led())         # True if power LED is on
+print(gpio.hdd_led())           # True if HDD LED is on
+```
 
-# Read screen resolution
-w, h = screen.screen_size()
+### `Storage()`
+
+```python
+from nanokvm_hid import Storage
+
+storage = Storage()
+images = storage.list_images()                   # find .iso/.img files
+storage.mount("/data/ubuntu.iso", cdrom=True)    # mount as CD-ROM
+print(storage.mounted())                         # current mount info
+storage.unmount()
+```
+
+### `HDMI()`
+
+```python
+from nanokvm_hid import HDMI
+
+hdmi = HDMI()
+hdmi.set_capture(True)              # enable HDMI capture
+hdmi.set_passthrough(True)          # enable loopout
+print(hdmi.current_edid)            # e.g. "E54-1080P60FPS"
+print(hdmi.list_edids())            # available profiles
+hdmi.switch_edid("E54-1080P60FPS")  # switch EDID profile
+hdmi.upload_edid("custom.bin")      # upload custom EDID
+hdmi.delete_edid("custom.bin")      # delete custom EDID
+```
+
+### `Jiggler()`
+
+```python
+from nanokvm_hid import Jiggler
+
+jiggler = Jiggler()
+jiggler.start(mode="relative")   # or "absolute"
+print(jiggler.is_running)
+jiggler.stop()
+```
+
+### `VirtualDevices()`
+
+```python
+from nanokvm_hid import VirtualDevices
+
+vdev = VirtualDevices()
+print(vdev.status())          # all device states
+vdev.toggle_network()         # toggle USB NCM adapter
+vdev.toggle_mic()             # toggle USB UAC2 mic
+vdev.set_disk("sdcard")       # expose SD card as USB drive
+vdev.set_disk(None)           # disable virtual disk
+```
+
+### HID Management
+
+```python
+from nanokvm_hid import reset_hid, get_hid_mode, set_hid_mode
+
+reset_hid()                   # restart USB gadgets
+print(get_hid_mode())         # "normal" or "hid-only"
+set_hid_mode("hid-only")     # switch mode
+```
+
+### Wake-on-LAN
+
+```python
+from nanokvm_hid import wake_on_lan
+
+wake_on_lan("AA:BB:CC:DD:EE:FF")
 ```
 
 ### `HIDTransport(device_path)`
@@ -130,7 +209,7 @@ nanokvm-hid tab
 nanokvm-hid escape
 
 # Mouse (coordinates are normalised 0.0–1.0)
-nanokvm-hid mouse move 0.5 0.5             # move to center
+nanokvm-hid mouse move 0.5 0.5
 nanokvm-hid mouse click 0.3 0.7            # left-click
 nanokvm-hid mouse click -r 0.8 0.2         # right-click
 nanokvm-hid mouse click -d 0.5 0.5         # double-click
@@ -138,11 +217,55 @@ nanokvm-hid mouse scroll-down 3
 nanokvm-hid mouse scroll-up
 nanokvm-hid mouse drag 0.1 0.1 0.9 0.9
 
+# GPIO — power/reset/LEDs
+nanokvm-hid power                           # short press (800ms)
+nanokvm-hid power --duration 5000           # force off (5s hold)
+nanokvm-hid reset-button                    # reset press
+nanokvm-hid power-led                       # exit 0=on, 1=off
+nanokvm-hid hdd-led
+
+# Virtual media — mount ISO/IMG
+nanokvm-hid storage list
+nanokvm-hid storage mount /data/ubuntu.iso --cdrom
+nanokvm-hid storage unmount
+nanokvm-hid storage status
+
+# HDMI control
+nanokvm-hid hdmi status
+nanokvm-hid hdmi capture on
+nanokvm-hid hdmi capture off
+nanokvm-hid hdmi passthrough on
+nanokvm-hid hdmi edid list
+nanokvm-hid hdmi edid current
+nanokvm-hid hdmi edid switch E54-1080P60FPS
+
+# Mouse jiggler
+nanokvm-hid jiggler on
+nanokvm-hid jiggler on --mode absolute
+nanokvm-hid jiggler off
+nanokvm-hid jiggler status
+
+# HID management
+nanokvm-hid hid-reset
+nanokvm-hid hid-mode                        # show current mode
+nanokvm-hid hid-mode hid-only
+nanokvm-hid hid-mode normal
+
+# Virtual USB devices
+nanokvm-hid virtual-device status
+nanokvm-hid virtual-device network          # toggle
+nanokvm-hid virtual-device mic              # toggle
+nanokvm-hid virtual-device disk sdcard
+nanokvm-hid virtual-device disk emmc
+
+# Wake-on-LAN
+nanokvm-hid wol AA:BB:CC:DD:EE:FF
+
 # Delay
 nanokvm-hid sleep 1.5
 
-# Options
-nanokvm-hid --delay 0.05 type "fast typing"
+# Screenshot
+nanokvm-hid capture -o screenshot.jpg
 ```
 
 ### Scripting

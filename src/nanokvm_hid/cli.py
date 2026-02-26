@@ -84,6 +84,28 @@ def _dispatch(args: argparse.Namespace, session: _Session) -> None:
         _cmd_script(args, session)
     elif cmd == "mouse":
         _dispatch_mouse(args, session)
+    elif cmd == "power":
+        _cmd_power(args)
+    elif cmd == "reset-button":
+        _cmd_reset_button(args)
+    elif cmd == "power-led":
+        _cmd_power_led()
+    elif cmd == "hdd-led":
+        _cmd_hdd_led()
+    elif cmd == "storage":
+        _dispatch_storage(args)
+    elif cmd == "jiggler":
+        _dispatch_jiggler(args)
+    elif cmd == "hdmi":
+        _dispatch_hdmi(args)
+    elif cmd == "hid-reset":
+        _cmd_hid_reset()
+    elif cmd == "hid-mode":
+        _cmd_hid_mode(args)
+    elif cmd == "wol":
+        _cmd_wol(args)
+    elif cmd == "virtual-device":
+        _dispatch_virtual_device(args)
 
 
 def _dispatch_mouse(args: argparse.Namespace, session: _Session) -> None:
@@ -111,6 +133,9 @@ def _dispatch_mouse(args: argparse.Namespace, session: _Session) -> None:
         mouse.drag(args.x0, args.y0, args.x1, args.y1)
 
 
+# ── Device info ──────────────────────────────────────────────────────
+
+
 def _cmd_info() -> None:
     """Show device status and screen resolution."""
     devices = [
@@ -128,6 +153,9 @@ def _cmd_info() -> None:
     print(f"  {'Screen':10s}  {w}×{h}")
 
 
+# ── Capture ──────────────────────────────────────────────────────────
+
+
 def _cmd_capture(args: argparse.Namespace) -> None:
     """Capture a screenshot."""
     screen = Screen(
@@ -143,6 +171,9 @@ def _cmd_capture(args: argparse.Namespace) -> None:
         print(screen.capture_base64())
     else:
         sys.stdout.buffer.write(screen.capture())
+
+
+# ── Script ───────────────────────────────────────────────────────────
 
 
 def _cmd_script(args: argparse.Namespace, session: _Session) -> None:
@@ -174,10 +205,224 @@ def _cmd_script(args: argparse.Namespace, session: _Session) -> None:
         _dispatch(script_args, session)
 
 
+# ── GPIO: power / reset / LEDs ──────────────────────────────────────
+
+
+def _cmd_power(args: argparse.Namespace) -> None:
+    """Press the power button on the target machine."""
+    from .gpio import GPIO
+
+    gpio = GPIO()
+    gpio.power(duration_ms=args.duration)
+    print(f"Power button pressed ({args.duration} ms)")
+
+
+def _cmd_reset_button(args: argparse.Namespace) -> None:
+    """Press the reset button on the target machine."""
+    from .gpio import GPIO
+
+    gpio = GPIO()
+    gpio.reset(duration_ms=args.duration)
+    print(f"Reset button pressed ({args.duration} ms)")
+
+
+def _cmd_power_led() -> None:
+    """Read the power LED status."""
+    from .gpio import GPIO
+
+    gpio = GPIO()
+    state = gpio.power_led()
+    print(f"Power LED: {'on' if state else 'off'}")
+    if not state:
+        sys.exit(1)
+
+
+def _cmd_hdd_led() -> None:
+    """Read the HDD LED status."""
+    from .gpio import GPIO
+
+    gpio = GPIO()
+    state = gpio.hdd_led()
+    print(f"HDD LED: {'on' if state else 'off'}")
+
+
+# ── Storage ──────────────────────────────────────────────────────────
+
+
+def _dispatch_storage(args: argparse.Namespace) -> None:
+    """Dispatch storage subcommands."""
+    from .storage import Storage
+
+    storage = Storage()
+    sub = args.storage_command
+
+    if sub == "list":
+        images = storage.list_images()
+        if not images:
+            print("No images found")
+        else:
+            for img in images:
+                print(img)
+    elif sub == "mount":
+        storage.mount(args.file, cdrom=args.cdrom, read_only=args.read_only)
+        cdrom_str = " (cdrom)" if args.cdrom else ""
+        ro_str = " (read-only)" if args.read_only else ""
+        print(f"Mounted: {args.file}{cdrom_str}{ro_str}")
+    elif sub == "unmount":
+        storage.unmount()
+        print("Unmounted")
+    elif sub == "status":
+        info = storage.mounted()
+        if info is None:
+            print("No image mounted")
+        else:
+            flags = []
+            if info["cdrom"]:
+                flags.append("cdrom")
+            if info["read_only"]:
+                flags.append("read-only")
+            flag_str = f" ({', '.join(flags)})" if flags else ""
+            print(f"Mounted: {info['file']}{flag_str}")
+
+
+# ── Jiggler ──────────────────────────────────────────────────────────
+
+
+def _dispatch_jiggler(args: argparse.Namespace) -> None:
+    """Dispatch jiggler subcommands."""
+    from .jiggler import Jiggler
+
+    sub = args.jiggler_command
+
+    if sub == "on":
+        jiggler = Jiggler()
+        jiggler.start(mode=args.mode)
+        print(f"Mouse jiggler started (mode={args.mode})")
+        # Keep running in foreground
+        try:
+            while jiggler.is_running:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            jiggler.stop()
+            print("\nMouse jiggler stopped")
+    elif sub == "off":
+        jiggler = Jiggler()
+        jiggler.stop()
+        print("Mouse jiggler stopped")
+    elif sub == "status":
+        jiggler = Jiggler()
+        status = "running" if jiggler.enabled else "stopped"
+        print(f"Mouse jiggler: {status} (mode={jiggler.mode})")
+
+
+# ── HDMI ─────────────────────────────────────────────────────────────
+
+
+def _dispatch_hdmi(args: argparse.Namespace) -> None:
+    """Dispatch HDMI subcommands."""
+    from .hdmi import HDMI
+
+    hdmi = HDMI()
+    sub = args.hdmi_command
+
+    if sub == "status":
+        capture = "on" if hdmi.capture_enabled else "off"
+        passthrough = "on" if hdmi.passthrough_enabled else "off"
+        edid = hdmi.current_edid
+        print(f"  Capture:     {capture}")
+        print(f"  Passthrough: {passthrough}")
+        print(f"  EDID:        {edid}")
+    elif sub == "capture":
+        hdmi.set_capture(args.state == "on")
+        print(f"HDMI capture {args.state}")
+    elif sub == "passthrough":
+        hdmi.set_passthrough(args.state == "on")
+        print(f"HDMI passthrough {args.state}")
+    elif sub == "edid":
+        if args.edid_command == "list":
+            edids = hdmi.list_edids()
+            current = hdmi.current_edid
+            for e in edids:
+                marker = " ← active" if e == current else ""
+                print(f"  {e}{marker}")
+        elif args.edid_command == "switch":
+            hdmi.switch_edid(args.profile)
+            print(f"Switched EDID to {args.profile}")
+        elif args.edid_command == "current":
+            print(hdmi.current_edid)
+
+
+# ── HID management ──────────────────────────────────────────────────
+
+
+def _cmd_hid_reset() -> None:
+    """Reset HID devices."""
+    from .hid_manager import reset_hid
+
+    print("Resetting HID devices...")
+    reset_hid()
+    print("HID devices reset")
+
+
+def _cmd_hid_mode(args: argparse.Namespace) -> None:
+    """Get or set HID mode."""
+    from .hid_manager import get_hid_mode, set_hid_mode
+
+    if args.mode:
+        print(f"Switching HID mode to {args.mode}...")
+        set_hid_mode(args.mode)
+        print(f"HID mode: {args.mode}")
+    else:
+        print(f"HID mode: {get_hid_mode()}")
+
+
+# ── Wake on LAN ─────────────────────────────────────────────────────
+
+
+def _cmd_wol(args: argparse.Namespace) -> None:
+    """Send a Wake-on-LAN magic packet."""
+    from .wol import wake_on_lan
+
+    wake_on_lan(args.mac)
+    print(f"WoL packet sent to {args.mac}")
+
+
+# ── Virtual devices ─────────────────────────────────────────────────
+
+
+def _dispatch_virtual_device(args: argparse.Namespace) -> None:
+    """Dispatch virtual-device subcommands."""
+    from .virtual_devices import VirtualDevices
+
+    vdev = VirtualDevices()
+    sub = args.vdev_command
+
+    if sub == "status":
+        status = vdev.status()
+        print(f"  Network:    {'enabled' if status['network'] else 'disabled'}")
+        print(f"  Microphone: {'enabled' if status['mic'] else 'disabled'}")
+        disk = status["disk"] or "disabled"
+        print(f"  Disk:       {disk}")
+        print(f"  SD card:    {'present' if status['sd_card_present'] else 'absent'}")
+        print(f"  eMMC:       {'present' if status['emmc_present'] else 'absent'}")
+    elif sub == "network":
+        enabled = vdev.toggle_network()
+        print(f"Virtual network {'enabled' if enabled else 'disabled'}")
+    elif sub == "mic":
+        enabled = vdev.toggle_mic()
+        print(f"Virtual microphone {'enabled' if enabled else 'disabled'}")
+    elif sub == "disk":
+        vdev.set_disk(args.type)
+        print(f"Virtual disk: {args.type or 'disabled'}")
+
+
+# ── Parser ───────────────────────────────────────────────────────────
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="nanokvm-hid",
-        description="Control keyboard & mouse via NanoKVM Pro HID gadgets.",
+        description="Control keyboard, mouse, and KVM features on NanoKVM Pro.",
     )
     parser.add_argument(
         "--delay",
@@ -309,6 +554,110 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("x1", type=float, help="End X")
     p.add_argument("y1", type=float, help="End Y")
 
+    # ── power ────────────────────────────────────────────────────
+    p = sub.add_parser("power", help="Press the power button on the target machine")
+    p.add_argument(
+        "--duration",
+        type=int,
+        default=800,
+        help="Button press duration in ms (default: 800, use 5000 for force-off)",
+    )
+
+    # ── reset-button ─────────────────────────────────────────────
+    p = sub.add_parser(
+        "reset-button",
+        help="Press the reset button on the target machine",
+    )
+    p.add_argument(
+        "--duration",
+        type=int,
+        default=800,
+        help="Button press duration in ms (default: 800)",
+    )
+
+    # ── power-led / hdd-led ──────────────────────────────────────
+    sub.add_parser("power-led", help="Read power LED state (exit code 1 if off)")
+    sub.add_parser("hdd-led", help="Read HDD activity LED state")
+
+    # ── storage ──────────────────────────────────────────────────
+    storage_parser = sub.add_parser("storage", help="USB virtual media (ISO/IMG)")
+    ssub = storage_parser.add_subparsers(dest="storage_command", required=True)
+
+    ssub.add_parser("list", help="List available images")
+    ssub.add_parser("status", help="Show currently mounted image")
+    ssub.add_parser("unmount", help="Unmount the current image")
+
+    p = ssub.add_parser("mount", help="Mount an ISO/IMG file")
+    p.add_argument("file", help="Path to image file (e.g. /data/ubuntu.iso)")
+    p.add_argument("--cdrom", action="store_true", help="Emulate CD-ROM drive")
+    p.add_argument("--read-only", action="store_true", help="Mount as read-only")
+
+    # ── jiggler ──────────────────────────────────────────────────
+    jiggler_parser = sub.add_parser("jiggler", help="Mouse jiggler (prevent sleep)")
+    jsub = jiggler_parser.add_subparsers(dest="jiggler_command", required=True)
+
+    p = jsub.add_parser("on", help="Start the mouse jiggler")
+    p.add_argument(
+        "--mode",
+        choices=["relative", "absolute"],
+        default="relative",
+        help="Jiggle mode (default: relative)",
+    )
+    jsub.add_parser("off", help="Stop the mouse jiggler")
+    jsub.add_parser("status", help="Show jiggler status")
+
+    # ── hdmi ─────────────────────────────────────────────────────
+    hdmi_parser = sub.add_parser("hdmi", help="HDMI capture and passthrough control")
+    hsub = hdmi_parser.add_subparsers(dest="hdmi_command", required=True)
+
+    hsub.add_parser("status", help="Show HDMI status")
+
+    p = hsub.add_parser("capture", help="Enable/disable HDMI capture")
+    p.add_argument("state", choices=["on", "off"], help="on or off")
+
+    p = hsub.add_parser("passthrough", help="Enable/disable HDMI passthrough")
+    p.add_argument("state", choices=["on", "off"], help="on or off")
+
+    edid_parser = hsub.add_parser("edid", help="EDID profile management")
+    esub = edid_parser.add_subparsers(dest="edid_command", required=True)
+    esub.add_parser("list", help="List available EDID profiles")
+    esub.add_parser("current", help="Show current EDID profile")
+    p = esub.add_parser("switch", help="Switch EDID profile")
+    p.add_argument("profile", help="EDID profile name")
+
+    # ── hid-reset ────────────────────────────────────────────────
+    sub.add_parser("hid-reset", help="Reset HID USB gadget devices")
+
+    # ── hid-mode ─────────────────────────────────────────────────
+    p = sub.add_parser("hid-mode", help="Get or set HID USB mode")
+    p.add_argument(
+        "mode",
+        nargs="?",
+        choices=["normal", "hid-only"],
+        default=None,
+        help="Set mode (omit to show current mode)",
+    )
+
+    # ── wol ──────────────────────────────────────────────────────
+    p = sub.add_parser("wol", help="Send Wake-on-LAN magic packet")
+    p.add_argument("mac", help="MAC address (e.g. AA:BB:CC:DD:EE:FF)")
+
+    # ── virtual-device ───────────────────────────────────────────
+    vdev_parser = sub.add_parser("virtual-device", help="Virtual USB device management")
+    vsub = vdev_parser.add_subparsers(dest="vdev_command", required=True)
+
+    vsub.add_parser("status", help="Show virtual device status")
+    vsub.add_parser("network", help="Toggle virtual network adapter (USB NCM)")
+    vsub.add_parser("mic", help="Toggle virtual microphone (USB UAC2)")
+    p = vsub.add_parser("disk", help="Set virtual disk source")
+    p.add_argument(
+        "type",
+        nargs="?",
+        choices=["sdcard", "emmc"],
+        default=None,
+        help="Disk source (omit to disable)",
+    )
+
     return parser
 
 
@@ -323,6 +672,9 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
