@@ -422,26 +422,32 @@ def _dispatch_stream(args: argparse.Namespace) -> None:
     """Dispatch stream subcommands."""
     from .stream import Stream
 
+    stream = Stream()
     sub = args.stream_command
 
-    with Stream() as stream:
-        if sub == "status":
-            print(f"  FPS: {stream.fps}")
+    if sub == "fps":
+        stream.set_fps(args.value)
+        print(f"FPS set to {args.value}")
 
-        elif sub == "fps":
-            if args.value is None:
-                print(f"FPS: {stream.fps}")
-            else:
-                stream.set_fps(args.value)
-                print(f"FPS set to {args.value}")
+    elif sub == "gop":
+        stream.set_gop(args.value)
+        print(f"GOP set to {args.value}")
 
-        elif sub == "gop":
-            stream.set_gop(args.value)
-            print(f"GOP set to {args.value}")
+    elif sub == "quality":
+        stream.set_quality(args.value)
+        print(f"Quality set to {args.value}")
 
-        elif sub == "rate-control":
-            stream.set_rate_control(args.mode)
-            print(f"Rate control set to {args.mode.upper()}")
+    elif sub == "bitrate":
+        stream.set_bitrate(args.value)
+        print(f"Bitrate set to {args.value} kbps")
+
+    elif sub == "rate-control":
+        stream.set_rate_control(args.mode)
+        print(f"Rate control set to {args.mode.upper()}")
+
+    elif sub == "mode":
+        stream.set_mode(args.mode)
+        print(f"Stream mode set to {args.mode}")
 
 
 # ── Parser ───────────────────────────────────────────────────────────
@@ -702,25 +708,35 @@ def build_parser() -> argparse.ArgumentParser:
         dest="stream_command", required=True,
     )
 
-    strsub.add_parser("status", help="Show current encoder settings")
-
-    p = strsub.add_parser("fps", help="Get or set encoder FPS")
+    p = strsub.add_parser("fps", help="Set encoder FPS")
     p.add_argument(
-        "value",
-        nargs="?",
-        type=int,
-        default=None,
-        help="FPS (0=auto, 1–120).  Omit to show current.",
+        "value", type=int, help="FPS (0=auto, 1–120)",
     )
 
     p = strsub.add_parser("gop", help="Set encoder GOP length")
     p.add_argument("value", type=int, help="GOP length (1–200)")
+
+    p = strsub.add_parser("quality", help="Set MJPEG quality")
+    p.add_argument("value", type=int, help="Quality (1–100)")
+
+    p = strsub.add_parser("bitrate", help="Set H264/H265 bitrate")
+    p.add_argument("value", type=int, help="Bitrate in kbps (1000–20000)")
 
     p = strsub.add_parser(
         "rate-control", help="Set rate-control mode",
     )
     p.add_argument(
         "mode", choices=["cbr", "vbr"], help="cbr or vbr",
+    )
+
+    p = strsub.add_parser("mode", help="Set stream mode")
+    p.add_argument(
+        "mode",
+        choices=[
+            "mjpeg", "h264-webrtc", "h264-direct",
+            "h265-webrtc", "h265-direct",
+        ],
+        help="Stream mode",
     )
 
     return parser

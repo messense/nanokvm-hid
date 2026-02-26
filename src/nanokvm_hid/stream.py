@@ -1,149 +1,115 @@
-"""Stream encoder control via libkvm.so (NanoKVM Pro).
+"""Stream encoder control via the NanoKVM server's HTTP API.
 
-Controls the hardware video encoder parameters (FPS, GOP, quality,
-bitrate, rate-control mode) by calling into the proprietary
-``libkvm.so`` shared library via ctypes.
+Controls the hardware video encoder parameters by calling the NanoKVM
+server's local API endpoints.  The server's ``CheckToken`` middleware
+skips authentication for localhost requests, so no credentials are
+needed when running on-device.
 
-.. note::
-
-    The NanoKVM server (``NanoKVM-Server``) must be running — it owns
-    the encoder channels.  This module modifies the *shared* encoder
-    parameters that the server's active stream uses.  ``kvmv_init``
-    is called to set up internal state, but encoder channel creation
-    will (harmlessly) fail because the server already holds them.
-
-    ``kvmv_read_img`` (frame capture) is **not** exposed here because
-    the encoder channels are exclusively owned by the running server.
-    Use the :class:`~nanokvm_hid.screen.Screen` class for frame
-    capture via the MJPEG HTTP stream instead.
+The NanoKVM server is the single owner of the hardware encoder
+(``libkvm.so``).  Encoder state is per-process, so only HTTP requests
+to the server can modify the live stream parameters.
 """
 
 from __future__ import annotations
 
-import ctypes
+import json
 import logging
-import threading
-from pathlib import Path
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 
 logger = logging.getLogger(__name__)
 
-# Default path to the shared library on NanoKVM Pro
-_DEFAULT_LIB_PATH = "/dev/shm/kvmapp/server/dl_lib/libkvm.so"
+# Rate-control modes
+RATE_CONTROL_CBR = "cbr"
+RATE_CONTROL_VBR = "vbr"
 
-# Rate-control modes (match kvm_vision.h)
-RATE_CONTROL_CBR = 0
-RATE_CONTROL_VBR = 1
+# Stream modes (match server/common/screen.go StreamTypeMap)
+STREAM_MODE_MJPEG = "mjpeg"
+STREAM_MODE_H264_WEBRTC = "h264-webrtc"
+STREAM_MODE_H264_DIRECT = "h264-direct"
+STREAM_MODE_H265_WEBRTC = "h265-webrtc"
+STREAM_MODE_H265_DIRECT = "h265-direct"
 
-_RATE_CONTROL_NAMES = {
-    RATE_CONTROL_CBR: "cbr",
-    RATE_CONTROL_VBR: "vbr",
-    "cbr": RATE_CONTROL_CBR,
-    "vbr": RATE_CONTROL_VBR,
+_VALID_MODES = {
+    STREAM_MODE_MJPEG,
+    STREAM_MODE_H264_WEBRTC,
+    STREAM_MODE_H264_DIRECT,
+    STREAM_MODE_H265_WEBRTC,
+    STREAM_MODE_H265_DIRECT,
 }
+
+
+def _make_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context that skips certificate verification."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 class Stream:
     """Control the NanoKVM hardware video encoder.
 
+    Communicates with the NanoKVM server over its local HTTPS API.
+    No authentication is required when running on the device itself
+    (the server skips auth for localhost connections).
+
     Parameters
     ----------
-    lib_path:
-        Path to ``libkvm.so``.  Defaults to the standard on-device
-        location (``/dev/shm/kvmapp/server/dl_lib/libkvm.so``).
+    base_url:
+        Base URL of the NanoKVM server API.
+    timeout:
+        HTTP request timeout in seconds.
 
     Example::
 
         from nanokvm_hid import Stream
 
         stream = Stream()
-        print(stream.fps)           # current FPS (0 = auto)
-        stream.set_fps(30)          # cap at 30 FPS
-        stream.set_gop(50)          # set GOP length
-        stream.set_rate_control("vbr")
-        stream.close()
+        stream.set_fps(30)                  # cap at 30 FPS
+        stream.set_gop(50)                  # set GOP length
+        stream.set_quality(80)              # MJPEG quality (1–100)
+        stream.set_bitrate(5000)            # H264/H265 bitrate (1000–20000)
+        stream.set_rate_control("vbr")      # "cbr" or "vbr"
+        stream.set_mode("h264-webrtc")      # stream mode
     """
 
     def __init__(
         self,
-        lib_path: str = _DEFAULT_LIB_PATH,
+        base_url: str = "https://localhost/api/stream",
+        timeout: float = 5,
     ) -> None:
-        self._lib_path = lib_path
-        self._lib: ctypes.CDLL | None = None
-        self._lock = threading.Lock()
-        self._init()
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
+        self._ssl_ctx = _make_ssl_context()
 
-    # ── lifecycle ─────────────────────────────────────────────────
+    # ── internal ──────────────────────────────────────────────────
 
-    def _init(self) -> None:
-        """Load libkvm and call kvmv_init."""
-        path = Path(self._lib_path)
-        if not path.exists():
-            raise FileNotFoundError(
-                f"libkvm.so not found at {self._lib_path}"
+    def _post(self, endpoint: str, **params: str | int) -> dict:
+        """POST to a stream API endpoint and return the JSON response."""
+        url = f"{self._base_url}/{endpoint}"
+        data = urllib.parse.urlencode(params).encode()
+        req = urllib.request.Request(url, data=data, method="POST")
+
+        try:
+            resp = urllib.request.urlopen(
+                req, timeout=self._timeout, context=self._ssl_ctx,
             )
+            body = json.loads(resp.read())
+        except (urllib.error.URLError, OSError) as exc:
+            raise ConnectionError(
+                f"Cannot connect to NanoKVM server at {url}: {exc}"
+            ) from exc
 
-        lib = ctypes.CDLL(self._lib_path)
-
-        # Declare function signatures
-        lib.kvmv_init.restype = None
-        lib.kvmv_init.argtypes = [ctypes.c_uint8]
-
-        lib.kvmv_deinit.restype = None
-        lib.kvmv_deinit.argtypes = []
-
-        lib.kvmv_get_fps.restype = ctypes.c_int
-        lib.kvmv_get_fps.argtypes = []
-
-        lib.kvmv_set_fps.restype = ctypes.c_int
-        lib.kvmv_set_fps.argtypes = [ctypes.c_uint8]
-
-        lib.kvmv_set_gop.restype = ctypes.c_int
-        lib.kvmv_set_gop.argtypes = [ctypes.c_uint8]
-
-        lib.kvmv_set_rate_control.restype = ctypes.c_int
-        lib.kvmv_set_rate_control.argtypes = [ctypes.c_uint8]
-
-        lib.kvmv_hdmi_control.restype = ctypes.c_int
-        lib.kvmv_hdmi_control.argtypes = [ctypes.c_uint8]
-
-        self._lib = lib
-
-        # Init internal state. Encoder channel creation will fail
-        # (harmlessly) if the NanoKVM server is running — that's fine,
-        # the set_* functions still work.
-        logger.debug("calling kvmv_init(0)")
-        lib.kvmv_init(ctypes.c_uint8(0))
-        logger.debug("kvmv_init complete")
-
-    def close(self) -> None:
-        """Release libkvm resources."""
-        with self._lock:
-            if self._lib is not None:
-                logger.debug("calling kvmv_deinit")
-                self._lib.kvmv_deinit()
-                self._lib = None
-
-    def __del__(self) -> None:
-        self.close()
-
-    def __enter__(self) -> Stream:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()
-
-    def _check(self) -> ctypes.CDLL:
-        if self._lib is None:
-            raise RuntimeError("Stream is closed")
-        return self._lib
+        if body.get("code") != 0:
+            raise RuntimeError(
+                f"Server returned error for {endpoint}: {body}"
+            )
+        return body
 
     # ── FPS ───────────────────────────────────────────────────────
-
-    @property
-    def fps(self) -> int:
-        """Current encoder FPS setting (0 = auto/uncapped)."""
-        with self._lock:
-            return self._check().kvmv_get_fps()
 
     def set_fps(self, fps: int) -> None:
         """Set encoder FPS.
@@ -157,15 +123,10 @@ class Stream:
         ------
         ValueError
             If *fps* is out of range.
-        RuntimeError
-            If the hardware call fails.
         """
         if not 0 <= fps <= 120:
             raise ValueError(f"FPS must be 0–120, got {fps}")
-        with self._lock:
-            rc = self._check().kvmv_set_fps(ctypes.c_uint8(fps))
-        if rc < 0:
-            raise RuntimeError(f"kvmv_set_fps({fps}) failed: {rc}")
+        self._post("fps", fps=fps)
         logger.info("set FPS to %d", fps)
 
     # ── GOP ───────────────────────────────────────────────────────
@@ -182,67 +143,102 @@ class Stream:
         ------
         ValueError
             If *gop* is out of range.
-        RuntimeError
-            If the hardware call fails.
         """
         if not 1 <= gop <= 200:
             raise ValueError(f"GOP must be 1–200, got {gop}")
-        with self._lock:
-            rc = self._check().kvmv_set_gop(ctypes.c_uint8(gop))
-        if rc < 0:
-            raise RuntimeError(f"kvmv_set_gop({gop}) failed: {rc}")
+        self._post("gop", gop=gop)
         logger.info("set GOP to %d", gop)
+
+    # ── quality / bitrate ─────────────────────────────────────────
+
+    def set_quality(self, quality: int) -> None:
+        """Set MJPEG quality.
+
+        Parameters
+        ----------
+        quality:
+            Quality level (1–100).  Higher is better.
+
+        Raises
+        ------
+        ValueError
+            If *quality* is out of range.
+        """
+        if not 1 <= quality <= 100:
+            raise ValueError(f"Quality must be 1–100, got {quality}")
+        self._post("quality", quality=quality)
+        logger.info("set quality to %d", quality)
+
+    def set_bitrate(self, bitrate: int) -> None:
+        """Set H264/H265 encoder bitrate.
+
+        Parameters
+        ----------
+        bitrate:
+            Bitrate in kbps (1000–20000).
+
+        Raises
+        ------
+        ValueError
+            If *bitrate* is out of range.
+        """
+        if not 1000 <= bitrate <= 20000:
+            raise ValueError(f"Bitrate must be 1000–20000, got {bitrate}")
+        # The server uses the quality endpoint for both; values > 100
+        # are treated as bitrate.
+        self._post("quality", quality=bitrate)
+        logger.info("set bitrate to %d kbps", bitrate)
 
     # ── rate control ──────────────────────────────────────────────
 
-    def set_rate_control(self, mode: str | int) -> None:
+    def set_rate_control(self, mode: str) -> None:
         """Set encoder rate-control mode.
 
         Parameters
         ----------
         mode:
-            ``"cbr"`` (constant bitrate) or ``"vbr"`` (variable
-            bitrate), or the integer constants ``RATE_CONTROL_CBR``
-            / ``RATE_CONTROL_VBR``.
+            ``"cbr"`` (constant bitrate) or ``"vbr"`` (variable bitrate).
 
         Raises
         ------
         ValueError
             If *mode* is not recognised.
-        RuntimeError
-            If the hardware call fails.
         """
-        if isinstance(mode, str):
-            key = mode.lower()
-            if key not in _RATE_CONTROL_NAMES:
-                raise ValueError(
-                    f"Unknown rate-control mode: {mode!r}"
-                    " (use 'cbr' or 'vbr')"
-                )
-            mode_int = _RATE_CONTROL_NAMES[key]
-        elif mode in (RATE_CONTROL_CBR, RATE_CONTROL_VBR):
-            mode_int = mode
-        else:
+        mode_lower = mode.lower()
+        if mode_lower not in (RATE_CONTROL_CBR, RATE_CONTROL_VBR):
             raise ValueError(
                 f"Unknown rate-control mode: {mode!r}"
                 " (use 'cbr' or 'vbr')"
             )
+        self._post("rate-control", mode=mode_lower)
+        logger.info("set rate control to %s", mode_lower.upper())
 
-        with self._lock:
-            rc = self._check().kvmv_set_rate_control(
-                ctypes.c_uint8(mode_int),
+    # ── stream mode ───────────────────────────────────────────────
+
+    def set_mode(self, mode: str) -> None:
+        """Set the streaming mode.
+
+        Parameters
+        ----------
+        mode:
+            One of ``"mjpeg"``, ``"h264-webrtc"``, ``"h264-direct"``,
+            ``"h265-webrtc"``, ``"h265-direct"``.
+
+        Raises
+        ------
+        ValueError
+            If *mode* is not recognised.
+        """
+        mode_lower = mode.lower()
+        if mode_lower not in _VALID_MODES:
+            valid = ", ".join(sorted(_VALID_MODES))
+            raise ValueError(
+                f"Unknown stream mode: {mode!r} (choose from: {valid})"
             )
-        if rc < 0:
-            raise RuntimeError(
-                f"kvmv_set_rate_control({mode_int}) failed: {rc}"
-            )
-        name = _RATE_CONTROL_NAMES.get(mode_int, str(mode_int))
-        logger.info("set rate control to %s", name)
+        self._post("mode", mode=mode_lower)
+        logger.info("set stream mode to %s", mode_lower)
 
     # ── repr ──────────────────────────────────────────────────────
 
     def __repr__(self) -> str:
-        if self._lib is None:
-            return "Stream(closed)"
-        fps = self.fps
-        return f"Stream(fps={fps})"
+        return f"Stream(url={self._base_url!r})"

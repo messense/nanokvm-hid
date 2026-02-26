@@ -1,7 +1,8 @@
-"""Tests for stream encoder control (libkvm ctypes wrapper)."""
+"""Tests for stream encoder control (HTTP API wrapper)."""
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +10,11 @@ import pytest
 from nanokvm_hid.stream import (
     RATE_CONTROL_CBR,
     RATE_CONTROL_VBR,
+    STREAM_MODE_H264_DIRECT,
+    STREAM_MODE_H264_WEBRTC,
+    STREAM_MODE_H265_DIRECT,
+    STREAM_MODE_H265_WEBRTC,
+    STREAM_MODE_MJPEG,
     Stream,
 )
 
@@ -16,82 +22,31 @@ from nanokvm_hid.stream import (
 
 
 @pytest.fixture()
-def mock_lib():
-    """A mock ctypes CDLL with kvmv_* functions."""
-    lib = MagicMock()
-    lib.kvmv_init.return_value = None
-    lib.kvmv_deinit.return_value = None
-    lib.kvmv_get_fps.return_value = 0
-    lib.kvmv_set_fps.return_value = 0
-    lib.kvmv_set_gop.return_value = 0
-    lib.kvmv_set_rate_control.return_value = 0
-    lib.kvmv_hdmi_control.return_value = 0
-    return lib
+def stream():
+    """A Stream instance (no network calls are made in construction)."""
+    return Stream()
 
 
 @pytest.fixture()
-def stream(mock_lib, tmp_path):
-    """Stream backed by a mock library."""
-    fake_so = tmp_path / "libkvm.so"
-    fake_so.write_bytes(b"\x00")
-
-    with (
-        patch("nanokvm_hid.stream.ctypes.CDLL", return_value=mock_lib),
-        patch("nanokvm_hid.stream.Path.exists", return_value=True),
-    ):
-        s = Stream(lib_path=str(fake_so))
-        yield s
-        s.close()
-
-
-# ── init / close ─────────────────────────────────────────────────────
-
-
-def test_init_calls_kvmv_init(mock_lib, stream):
-    mock_lib.kvmv_init.assert_called_once()
-
-
-def test_close(mock_lib, stream):
-    stream.close()
-    mock_lib.kvmv_deinit.assert_called_once()
-
-
-def test_close_idempotent(mock_lib, stream):
-    stream.close()
-    stream.close()
-    assert mock_lib.kvmv_deinit.call_count == 1
-
-
-def test_context_manager(mock_lib, tmp_path):
-    fake_so = tmp_path / "libkvm.so"
-    fake_so.write_bytes(b"\x00")
-
-    with (
-        patch("nanokvm_hid.stream.ctypes.CDLL", return_value=mock_lib),
-        patch("nanokvm_hid.stream.Path.exists", return_value=True),
-        Stream(lib_path=str(fake_so)),
-    ):
-        pass
-    mock_lib.kvmv_deinit.assert_called_once()
-
-
-def test_lib_not_found():
-    with pytest.raises(FileNotFoundError, match="libkvm.so not found"):
-        Stream(lib_path="/nonexistent/libkvm.so")
+def mock_urlopen():
+    """Patch urllib.request.urlopen to return a success response."""
+    resp = MagicMock()
+    resp.read.return_value = json.dumps(
+        {"code": 0, "msg": "success", "data": None},
+    ).encode()
+    with patch("nanokvm_hid.stream.urllib.request.urlopen", return_value=resp) as m:
+        yield m
 
 
 # ── fps ──────────────────────────────────────────────────────────────
 
 
-def test_get_fps(mock_lib, stream):
-    mock_lib.kvmv_get_fps.return_value = 30
-    assert stream.fps == 30
-
-
 @pytest.mark.parametrize("fps", [0, 1, 30, 60, 120])
-def test_set_fps_valid(mock_lib, stream, fps):
+def test_set_fps_valid(stream, mock_urlopen, fps):
     stream.set_fps(fps)
-    mock_lib.kvmv_set_fps.assert_called_once()
+    mock_urlopen.assert_called_once()
+    req = mock_urlopen.call_args[0][0]
+    assert b"fps=" in req.data
 
 
 @pytest.mark.parametrize("fps", [-1, 121, 200])
@@ -100,19 +55,13 @@ def test_set_fps_out_of_range(stream, fps):
         stream.set_fps(fps)
 
 
-def test_set_fps_hw_failure(mock_lib, stream):
-    mock_lib.kvmv_set_fps.return_value = -1
-    with pytest.raises(RuntimeError, match="kvmv_set_fps"):
-        stream.set_fps(30)
-
-
 # ── gop ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("gop", [1, 50, 200])
-def test_set_gop_valid(mock_lib, stream, gop):
+def test_set_gop_valid(stream, mock_urlopen, gop):
     stream.set_gop(gop)
-    mock_lib.kvmv_set_gop.assert_called_once()
+    mock_urlopen.assert_called_once()
 
 
 @pytest.mark.parametrize("gop", [0, 201, -1])
@@ -121,10 +70,34 @@ def test_set_gop_out_of_range(stream, gop):
         stream.set_gop(gop)
 
 
-def test_set_gop_hw_failure(mock_lib, stream):
-    mock_lib.kvmv_set_gop.return_value = -1
-    with pytest.raises(RuntimeError, match="kvmv_set_gop"):
-        stream.set_gop(50)
+# ── quality ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("q", [1, 50, 80, 100])
+def test_set_quality_valid(stream, mock_urlopen, q):
+    stream.set_quality(q)
+    mock_urlopen.assert_called_once()
+
+
+@pytest.mark.parametrize("q", [0, 101, -1])
+def test_set_quality_out_of_range(stream, q):
+    with pytest.raises(ValueError, match="Quality must be"):
+        stream.set_quality(q)
+
+
+# ── bitrate ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("br", [1000, 5000, 8000, 20000])
+def test_set_bitrate_valid(stream, mock_urlopen, br):
+    stream.set_bitrate(br)
+    mock_urlopen.assert_called_once()
+
+
+@pytest.mark.parametrize("br", [999, 20001, 0])
+def test_set_bitrate_out_of_range(stream, br):
+    with pytest.raises(ValueError, match="Bitrate must be"):
+        stream.set_bitrate(br)
 
 
 # ── rate control ─────────────────────────────────────────────────────
@@ -134,46 +107,72 @@ def test_set_gop_hw_failure(mock_lib, stream):
     "mode",
     ["cbr", "vbr", "CBR", "VBR", RATE_CONTROL_CBR, RATE_CONTROL_VBR],
 )
-def test_set_rate_control_valid(mock_lib, stream, mode):
+def test_set_rate_control_valid(stream, mock_urlopen, mode):
     stream.set_rate_control(mode)
-    mock_lib.kvmv_set_rate_control.assert_called_once()
+    mock_urlopen.assert_called_once()
 
 
-@pytest.mark.parametrize("mode", ["invalid", 5, "abr"])
+@pytest.mark.parametrize("mode", ["invalid", "abr"])
 def test_set_rate_control_invalid(stream, mode):
     with pytest.raises(ValueError, match="Unknown rate-control"):
         stream.set_rate_control(mode)
 
 
-def test_set_rate_control_hw_failure(mock_lib, stream):
-    mock_lib.kvmv_set_rate_control.return_value = -1
-    with pytest.raises(RuntimeError, match="kvmv_set_rate_control"):
-        stream.set_rate_control("cbr")
+# ── stream mode ──────────────────────────────────────────────────────
 
 
-# ── closed ───────────────────────────────────────────────────────────
+@pytest.mark.parametrize(
+    "mode",
+    [
+        STREAM_MODE_MJPEG,
+        STREAM_MODE_H264_WEBRTC,
+        STREAM_MODE_H264_DIRECT,
+        STREAM_MODE_H265_WEBRTC,
+        STREAM_MODE_H265_DIRECT,
+        "MJPEG",  # case-insensitive
+    ],
+)
+def test_set_mode_valid(stream, mock_urlopen, mode):
+    stream.set_mode(mode)
+    mock_urlopen.assert_called_once()
 
 
-def test_fps_after_close(mock_lib, stream):
-    stream.close()
-    with pytest.raises(RuntimeError, match="closed"):
-        _ = stream.fps
+@pytest.mark.parametrize("mode", ["invalid", "h266", ""])
+def test_set_mode_invalid(stream, mode):
+    with pytest.raises(ValueError, match="Unknown stream mode"):
+        stream.set_mode(mode)
 
 
-def test_set_fps_after_close(mock_lib, stream):
-    stream.close()
-    with pytest.raises(RuntimeError, match="closed"):
+# ── connection errors ────────────────────────────────────────────────
+
+
+def test_connection_error(stream):
+    import urllib.error
+
+    with patch(
+        "nanokvm_hid.stream.urllib.request.urlopen",
+        side_effect=urllib.error.URLError("refused"),
+    ), pytest.raises(ConnectionError, match="Cannot connect"):
+        stream.set_fps(30)
+
+
+# ── server error response ───────────────────────────────────────────
+
+
+def test_server_error_response(stream):
+    resp = MagicMock()
+    resp.read.return_value = json.dumps(
+        {"code": -1, "msg": "failed"},
+    ).encode()
+    with patch(
+        "nanokvm_hid.stream.urllib.request.urlopen",
+        return_value=resp,
+    ), pytest.raises(RuntimeError, match="Server returned error"):
         stream.set_fps(30)
 
 
 # ── repr ─────────────────────────────────────────────────────────────
 
 
-def test_repr_open(mock_lib, stream):
-    mock_lib.kvmv_get_fps.return_value = 25
-    assert "fps=25" in repr(stream)
-
-
-def test_repr_closed(mock_lib, stream):
-    stream.close()
-    assert "closed" in repr(stream)
+def test_repr(stream):
+    assert "https://localhost/api/stream" in repr(stream)

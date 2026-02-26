@@ -15,7 +15,7 @@ The NanoKVM Pro sits between a host computer and its peripherals, exposing USB H
 - **Mouse jiggler** — background keep-alive with relative/absolute modes
 - **HID management** — reset stuck USB gadgets, switch normal/hid-only mode
 - **Virtual USB devices** — toggle network adapter (NCM), microphone (UAC2), disk (SD/eMMC)
-- **Stream control** — FPS, GOP, rate-control mode via libkvm.so ctypes
+- **Stream control** — FPS, GOP, quality, bitrate, rate-control, stream mode via server HTTP API
 - **Wake-on-LAN** — send magic packets to power on machines
 - **Pure Python** — no dependencies beyond the standard library
 - **OS-agnostic target** — works on any OS the KVM-controlled computer runs (Windows, Linux, macOS, BIOS, UEFI…)
@@ -181,16 +181,19 @@ wake_on_lan("AA:BB:CC:DD:EE:FF")
 
 ### `Stream()`
 
-Control the hardware video encoder via `libkvm.so`:
+Control the hardware video encoder via the NanoKVM server's local API
+(no auth required from localhost):
 
 ```python
 from nanokvm_hid import Stream
 
-with Stream() as stream:
-    print(stream.fps)               # current FPS (0 = auto)
-    stream.set_fps(30)              # cap at 30 FPS
-    stream.set_gop(50)              # GOP length (1–200)
-    stream.set_rate_control("vbr")  # "cbr" or "vbr"
+stream = Stream()
+stream.set_fps(30)                  # cap at 30 FPS (0 = auto)
+stream.set_gop(50)                  # GOP length (1–200)
+stream.set_quality(80)              # MJPEG quality (1–100)
+stream.set_bitrate(5000)            # H264/H265 bitrate (1000–20000 kbps)
+stream.set_rate_control("vbr")      # "cbr" or "vbr"
+stream.set_mode("h264-webrtc")      # mjpeg, h264-webrtc, h264-direct, h265-*
 ```
 
 ### `HIDTransport(device_path)`
@@ -277,11 +280,12 @@ nanokvm-hid virtual-device disk emmc
 nanokvm-hid wol AA:BB:CC:DD:EE:FF
 
 # Stream encoder control
-nanokvm-hid stream status
-nanokvm-hid stream fps                      # show current
-nanokvm-hid stream fps 30                   # set to 30
-nanokvm-hid stream gop 50
-nanokvm-hid stream rate-control vbr
+nanokvm-hid stream fps 30                   # set FPS (0 = auto)
+nanokvm-hid stream gop 50                   # set GOP length
+nanokvm-hid stream quality 80               # MJPEG quality
+nanokvm-hid stream bitrate 5000             # H264/H265 bitrate (kbps)
+nanokvm-hid stream rate-control vbr         # cbr or vbr
+nanokvm-hid stream mode h264-webrtc         # stream mode
 
 # Delay
 nanokvm-hid sleep 1.5
