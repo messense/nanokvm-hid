@@ -196,6 +196,21 @@ stream.set_rate_control("vbr")      # "cbr" or "vbr"
 stream.set_mode("h264-webrtc")      # mjpeg, h264-webrtc, h264-direct, h265-*
 ```
 
+**Stream modes:**
+
+| Mode | Description |
+|---|---|
+| `mjpeg` | MJPEG over HTTP (widest compatibility) |
+| `h264-webrtc` | H.264 via WebRTC (default in web UI) |
+| `h264-direct` | H.264 NAL units over WebSocket |
+| `h265-webrtc` | H.265/HEVC via WebRTC |
+| `h265-direct` | H.265/HEVC NAL units over WebSocket |
+
+> **H.265 note:** The NanoKVM Pro hardware (AX620Q SoC) and server binary fully support
+> H.265 encoding, but the web dashboard hides the option because most browsers lack H.265
+> WebRTC support. This library can enable H.265 mode regardless — use `h265-direct` for
+> WebSocket-based access, which is easier to consume from custom clients.
+
 ### `HIDTransport(device_path)`
 
 Low-level transport for sending raw HID reports:

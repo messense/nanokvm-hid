@@ -23,6 +23,24 @@ uv run pytest -v           # Run all tests
 uv run ruff check          # Lint
 uv run ruff format --check # Format check
 uv run ruff check --fix    # Auto-fix lint issues
+uv run ruff format         # Auto-format all files
+```
+
+## Pre-Commit Checklist
+
+Before committing, **always** run:
+
+```bash
+uv run ruff check          # must pass with zero errors
+uv run ruff format --check # must report no changes needed
+uv run pytest              # all tests must pass
+```
+
+If `ruff check` or `ruff format --check` fails, fix with:
+
+```bash
+uv run ruff check --fix    # auto-fix lint issues
+uv run ruff format         # auto-format
 ```
 
 ## Architecture & Design Principles
@@ -103,3 +121,17 @@ After any code change (new features, API changes, renamed modules, new CLI comma
 - **Image directories**: `/data/` and `/sdcard/` for `.iso`/`.img` files.
 - **USB device script**: `/kvmapp/scripts/usbdev.sh` with args `restart`, `stop`, `start`, `hid-only`.
 - **libkvm.so**: at `/dev/shm/kvmapp/server/dl_lib/libkvm.so`. Requires `kvmv_init()` before `set_*` calls; `kvmv_get_fps()` works without init. Encoder channel creation (`kvmv_read_img`) fails when the NanoKVM server is running (exclusive access), but parameter set functions (`kvmv_set_fps`, `kvmv_set_gop`, `kvmv_set_rate_control`) work fine alongside the server.
+
+## H.265/HEVC Support
+
+The NanoKVM Pro hardware and server binary **fully support H.265** encoding, despite the open-source repository containing only a patent disclaimer placeholder. Key findings:
+
+- **Hardware encoder**: `us_ax_get_h265_frame` in `libkvm.so` — the AX620Q SoC has native H.265 encoding
+- **Server binary**: Full `h265/direct` and `h265/webrtc` packages compiled in (discoverable via `strings NanoKVM-Server`)
+- **HTTP routes registered**: `/api/stream/h265/direct` and `/api/stream/h265/webrtc` respond (HTTP 400, not 404)
+- **Mode switching works**: `POST /api/stream/mode` with `h265-webrtc` or `h265-direct` returns success
+- **Source files** (paths embedded in binary): `service/stream/h265/direct/streamer.go`, `service/stream/h265/direct/h265.go`, `service/stream/h265/webrtc/h265.go`, `service/stream/h265/webrtc/client.go`, `service/stream/h265/webrtc/signaling.go`, `service/stream/h265/webrtc/manager.go`, `service/stream/h265/webrtc/track.go`
+
+**Why it's hidden in the web dashboard**: The frontend's `isH265Supported()` in `web/src/lib/video.ts` checks `RTCRtpReceiver.getCapabilities('video')` for H.265 codec support — most browsers (Chrome, Firefox, Edge) don't advertise H.265 in WebRTC capabilities. Additionally, Sipeed's open-source H.265 directory contains only a patent/licensing disclaimer.
+
+**Our library enables it**: `stream.set_mode("h265-webrtc")` or `stream.set_mode("h265-direct")` works. The viewer/client must support H.265 decoding (e.g., via `h265-direct` mode which sends raw H.265 NAL units over WebSocket).

@@ -8,6 +8,11 @@ needed when running on-device.
 The NanoKVM server is the single owner of the hardware encoder
 (``libkvm.so``).  Encoder state is per-process, so only HTTP requests
 to the server can modify the live stream parameters.
+
+Supported stream modes: MJPEG, H.264 (WebRTC/direct), H.265 (WebRTC/direct).
+The NanoKVM Pro hardware (AX620Q SoC) and server binary fully support
+H.265/HEVC encoding.  The web dashboard hides H.265 options because most
+browsers lack H.265 WebRTC support, but this library can enable it.
 """
 
 from __future__ import annotations
