@@ -108,10 +108,16 @@ ssh root@<NANOKVM_IP> "nanokvm-hid hdmi edid list"
 ssh root@<NANOKVM_IP> "nanokvm-hid hdmi edid switch E54-1080P60FPS"
 
 # Stream encoder control
+ssh root@<NANOKVM_IP> "nanokvm-hid stream status"
 ssh root@<NANOKVM_IP> "nanokvm-hid stream fps 30"
 ssh root@<NANOKVM_IP> "nanokvm-hid stream mode h264-webrtc"
 ssh root@<NANOKVM_IP> "nanokvm-hid stream quality 80"
 ssh root@<NANOKVM_IP> "nanokvm-hid stream bitrate 5000"
+
+# Video capture
+ssh root@<NANOKVM_IP> "nanokvm-hid stream record -o /tmp/clip.h264 --duration 10"
+ssh root@<NANOKVM_IP> "nanokvm-hid stream record -o /tmp/clip.h265 --codec h265 --frames 300"
+scp root@<NANOKVM_IP>:/tmp/clip.h264 ./clip.h264
 
 # Mouse jiggler
 ssh root@<NANOKVM_IP> "nanokvm-hid jiggler on"
@@ -250,7 +256,25 @@ storage.unmount()
 
 # Stream encoder — FPS, GOP, quality, bitrate, mode
 stream = Stream()
+info = stream.status()              # read current settings
+print(info)                         # {'fps': 0, 'gop': 50, 'bitrate': 8000, ...}
 stream.set_fps(30)                  # 0 = auto, 1–120
+stream.set_quality(80)              # MJPEG quality (1–100)
+stream.set_bitrate(5000)            # H264/H265 bitrate in kbps (1000–20000)
+stream.set_mode("h264-direct")      # see stream modes below
+
+# Video capture — record raw H.264/H.265 via WebSocket
+result = stream.record("clip.h264", codec="h264", duration=5.0)
+print(result)  # {'file': 'clip.h264', 'codec': 'h264', 'frames': 150, ...}
+
+result = stream.record("clip.h265", codec="h265", max_frames=300)
+
+# Async frame-by-frame capture
+import asyncio
+async def grab():
+    async for frame in stream.capture("h264", max_frames=10):
+        print(frame.is_key_frame, frame.timestamp_us, len(frame.data))
+asyncio.run(grab())
 stream.set_gop(50)                  # GOP length (1–200)
 stream.set_quality(80)              # MJPEG quality (1–100)
 stream.set_bitrate(5000)            # H264/H265 bitrate in kbps (1000–20000)
@@ -410,12 +434,14 @@ All commands are available as `nanokvm-hid <command>`:
 
 | Command | Description | Example |
 |---|---|---|
+| `stream status` | Show current encoder settings | `nanokvm-hid stream status` |
 | `stream fps <n>` | Set FPS (0=auto, 1–120) | `nanokvm-hid stream fps 30` |
 | `stream gop <n>` | Set GOP length (1–200) | `nanokvm-hid stream gop 50` |
 | `stream quality <n>` | Set MJPEG quality (1–100) | `nanokvm-hid stream quality 80` |
 | `stream bitrate <n>` | Set H264/H265 bitrate kbps (1000–20000) | `nanokvm-hid stream bitrate 5000` |
 | `stream rate-control <mode>` | Set rate control (cbr/vbr) | `nanokvm-hid stream rate-control vbr` |
 | `stream mode <mode>` | Set stream mode | `nanokvm-hid stream mode h265-direct` |
+| `stream record -o <file>` | Record raw video stream | `nanokvm-hid stream record -o clip.h264 --duration 10` |
 
 ### Other Commands
 
@@ -454,8 +480,9 @@ All commands are available as `nanokvm-hid <command>`:
 3. **Screen capture uses MJPEG by default** — the NanoKVM streams HDMI input as MJPEG over HTTPS (self-signed cert). Use `--pikvm` flag if running PiKVM firmware.
 4. **Add delays after actions that change screen state** — after clicking, opening apps, or submitting forms, wait (`sleep 0.5`–`2`) before capturing the next screenshot so the display has time to update.
 5. **Screen resolution is auto-detected** from `/proc/lt6911_info/{width,height}` on the NanoKVM. No configuration needed.
-6. **The library is pure Python with zero dependencies** — it only uses the standard library and works on the NanoKVM's built-in Python 3.
+6. **The library has one dependency** (`websockets`) for video capture. Install with `pip install nanokvm-hid`.
 7. **Stream control uses the server HTTP API** — encoder state is per-process, so the library talks to the NanoKVM server at `https://localhost/api/stream/*`. No auth is needed from localhost.
 8. **H.265 is fully functional** — despite being hidden in the web dashboard, H.265 encoding works. Set via `stream.set_mode("h265-direct")` or `nanokvm-hid stream mode h265-direct`.
 9. **GPIO LEDs are active-low** — `gpio.power_led()` returns `True` when the LED is on (GPIO value 0).
 10. **Virtual media requires configfs** — the mass_storage USB gadget function must exist in `/sys/kernel/config/usb_gadget/g0/`. Not all NanoKVM configurations have this pre-configured.
+11. **Video capture uses WebSocket direct mode** — `stream.record()` and `stream.capture()` connect to the server's `h264-direct` or `h265-direct` WebSocket endpoint. The server auto-switches stream mode when a client connects. Output files are raw NAL bitstreams playable with `ffplay` or `mpv`.

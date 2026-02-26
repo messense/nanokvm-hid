@@ -8,7 +8,7 @@ The library talks to Linux kernel interfaces: `/dev/hidgN` character devices for
 
 ## Tech Stack
 
-- **Python ≥ 3.10**, no runtime dependencies (stdlib only)
+- **Python ≥ 3.10**, runtime dependency: `websockets` (for video capture)
 - **Build**: hatchling
 - **Package manager**: uv
 - **Linting**: ruff (select: E, F, I, UP, B, SIM; line length: 88)
@@ -59,7 +59,7 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 | `virtual_devices.py` | `/boot/usb.{ncm,uac2,disk1.*}` (flag files) + `usbdev.sh` |
 | `jiggler.py` | HID writes via `transport.py` + config at `/etc/kvm/mouse-jiggler` |
 | `wol.py` | `ether-wake` (subprocess) |
-| `stream.py` | NanoKVM server HTTP API (`/api/stream/*`) — no auth from localhost |
+| `stream.py` | NanoKVM server HTTP API (`/api/stream/*`) — no auth from localhost; WebSocket (`wss://localhost/api/stream/{h264,h265}/direct`) for video capture |
 | `screen.py` | MJPEG stream or PiKVM-compatible API (HTTP — the only exception, for video capture) |
 
 ### Module patterns
@@ -92,6 +92,7 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 - Virtual USB devices (network, mic, disk)
 - Wake-on-LAN
 - Stream encoder control (FPS, GOP, quality, bitrate, rate-control, mode)
+- Video capture via direct WebSocket (H.264 / H.265 raw NAL units)
 - Screen capture
 
 **Out of scope** — standard Linux operations:
@@ -102,8 +103,24 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 - Network configuration
 
 **Deferred** — requires exclusive hardware access:
-- HDMI frame capture via libkvm — encoder channels are exclusively owned by the running NanoKVM server; use the MJPEG HTTP stream instead
 - Direct libkvm.so ctypes for stream parameters — encoder state is per-process, so ctypes `kvmv_set_*` only modifies the calling process, not the server's live stream; use the HTTP API instead
+
+## Direct WebSocket Stream Protocol
+
+The ``h264-direct`` and ``h265-direct`` endpoints stream raw NAL units over WebSocket.
+Each binary message has a 9-byte header:
+
+```
+byte[0]     is_key_frame  (0 = P-frame, 1 = I-frame/keyframe)
+byte[1..8]  timestamp_us  (uint64 LE, microseconds since stream start)
+byte[9..]   NAL unit data (starts with 00 00 00 01)
+```
+
+- **Endpoints**: `wss://localhost/api/stream/h264/direct`, `wss://localhost/api/stream/h265/direct`
+- **Auth**: Uses `LocalAuth()` middleware — no auth from localhost
+- **Mode switching**: The server automatically switches to direct-stream mode when a WebSocket client connects. This may interrupt other active viewers (WebRTC, MJPEG).
+- **No data**: If no HDMI input is connected, the server sends empty frames (skipped by our parser).
+- **Library API**: `Stream.capture()` (async generator) and `Stream.record()` (sync file writer).
 
 ## Post-Change Checklist
 

@@ -16,8 +16,9 @@ The NanoKVM Pro sits between a host computer and its peripherals, exposing USB H
 - **HID management** — reset stuck USB gadgets, switch normal/hid-only mode
 - **Virtual USB devices** — toggle network adapter (NCM), microphone (UAC2), disk (SD/eMMC)
 - **Stream control** — FPS, GOP, quality, bitrate, rate-control, stream mode via server HTTP API
+- **Video capture** — record raw H.264/H.265 streams via WebSocket (direct mode)
 - **Wake-on-LAN** — send magic packets to power on machines
-- **Pure Python** — no dependencies beyond the standard library
+- **Pure Python** — single dependency (`websockets`) for video capture
 - **OS-agnostic target** — works on any OS the KVM-controlled computer runs (Windows, Linux, macOS, BIOS, UEFI…)
 
 ## Installation
@@ -188,13 +189,53 @@ Control the hardware video encoder via the NanoKVM server's local API
 from nanokvm_hid import Stream
 
 stream = Stream()
+
+# Read current settings
+info = stream.status()
+print(info)
+# {'fps': 0, 'gop': 50, 'bitrate': 8000,
+#  'resolution': {'width': 3840, 'height': 2160}, 'captured_fps': 0}
+
+# Set parameters
 stream.set_fps(30)                  # cap at 30 FPS (0 = auto)
 stream.set_gop(50)                  # GOP length (1–200)
 stream.set_quality(80)              # MJPEG quality (1–100)
 stream.set_bitrate(5000)            # H264/H265 bitrate (1000–20000 kbps)
 stream.set_rate_control("vbr")      # "cbr" or "vbr"
 stream.set_mode("h264-webrtc")      # mjpeg, h264-webrtc, h264-direct, h265-*
+
+# Record raw video stream to file
+result = stream.record("clip.h264", codec="h264", duration=5.0)
+# {'file': 'clip.h264', 'codec': 'h264', 'frames': 150, 'bytes': 2048576, 'duration': 5.01}
+
+result = stream.record("clip.h265", codec="h265", max_frames=300)
+
+# Async frame-by-frame capture
+import asyncio
+
+async def grab_frames():
+    async for frame in stream.capture("h264", max_frames=10):
+        print(frame.is_key_frame, frame.timestamp_us, len(frame.data))
+        # frame.data = raw NAL units (starts with 00 00 00 01)
+
+asyncio.run(grab_frames())
 ```
+
+**Methods:**
+
+| Method | Description |
+|---|---|
+| `status()` | Read current encoder state (FPS, GOP, bitrate, resolution, captured FPS) |
+| `set_fps(n)` | Set target FPS (0=auto, 1–120) |
+| `set_gop(n)` | Set GOP length (1–200) |
+| `set_quality(n)` | Set MJPEG quality (1–100) |
+| `set_bitrate(n)` | Set H264/H265 bitrate in kbps (1000–20000) |
+| `set_rate_control(mode)` | Set rate control: `"cbr"` or `"vbr"` |
+| `set_mode(mode)` | Set stream mode (see table below) |
+| `record(path, codec, ...)` | Record raw H.264/H.265 stream to file (sync) |
+| `capture(codec, ...)` | Async generator yielding `VideoFrame` objects |
+
+**`VideoFrame` fields:** `is_key_frame` (bool), `timestamp_us` (int), `data` (bytes), `codec` (str)
 
 **Stream modes:**
 
@@ -295,12 +336,18 @@ nanokvm-hid virtual-device disk emmc
 nanokvm-hid wol AA:BB:CC:DD:EE:FF
 
 # Stream encoder control
+nanokvm-hid stream status                   # show current settings
 nanokvm-hid stream fps 30                   # set FPS (0 = auto)
 nanokvm-hid stream gop 50                   # set GOP length
 nanokvm-hid stream quality 80               # MJPEG quality
 nanokvm-hid stream bitrate 5000             # H264/H265 bitrate (kbps)
 nanokvm-hid stream rate-control vbr         # cbr or vbr
 nanokvm-hid stream mode h264-webrtc         # stream mode
+
+# Video capture (raw H.264/H.265 via WebSocket)
+nanokvm-hid stream record -o clip.h264                   # record H.264 (Ctrl+C to stop)
+nanokvm-hid stream record -o clip.h264 --duration 10     # record for 10 seconds
+nanokvm-hid stream record -o clip.h265 --codec h265 --frames 300  # 300 H.265 frames
 
 # Delay
 nanokvm-hid sleep 1.5

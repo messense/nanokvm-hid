@@ -425,7 +425,16 @@ def _dispatch_stream(args: argparse.Namespace) -> None:
     stream = Stream()
     sub = args.stream_command
 
-    if sub == "fps":
+    if sub == "status":
+        info = stream.status()
+        res = info["resolution"]
+        print(f"  FPS:          {info['fps']} (0 = auto)")
+        print(f"  GOP:          {info['gop']}")
+        print(f"  Bitrate:      {info['bitrate']} kbps")
+        print(f"  Resolution:   {res['width']}×{res['height']}")
+        print(f"  Captured FPS: {info['captured_fps']}")
+
+    elif sub == "fps":
         stream.set_fps(args.value)
         print(f"FPS set to {args.value}")
 
@@ -444,6 +453,35 @@ def _dispatch_stream(args: argparse.Namespace) -> None:
     elif sub == "rate-control":
         stream.set_rate_control(args.mode)
         print(f"Rate control set to {args.mode.upper()}")
+
+    elif sub == "record":
+        desc = args.codec.upper()
+        if args.duration:
+            desc += f", {args.duration}s"
+        elif args.frames:
+            desc += f", {args.frames} frames"
+        else:
+            desc += ", press Ctrl+C to stop"
+        print(f"Recording {desc} → {args.output}")
+
+        try:
+            result = stream.record(
+                args.output,
+                codec=args.codec,
+                max_frames=args.frames,
+                duration=args.duration,
+                timeout=args.timeout,
+            )
+            mb = result["bytes"] / (1024 * 1024)
+            print(f"  {result['frames']} frames, {mb:.1f} MB, {result['duration']}s")
+        except KeyboardInterrupt:
+            import os
+
+            print()
+            if os.path.exists(args.output):
+                size = os.path.getsize(args.output)
+                mb = size / (1024 * 1024)
+                print(f"  Stopped — {mb:.1f} MB saved to {args.output}")
 
     elif sub == "mode":
         stream.set_mode(args.mode)
@@ -714,6 +752,8 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    strsub.add_parser("status", help="Show current stream encoder status")
+
     p = strsub.add_parser("fps", help="Set encoder FPS")
     p.add_argument(
         "value",
@@ -751,6 +791,38 @@ def build_parser() -> argparse.ArgumentParser:
             "h265-direct",
         ],
         help="Stream mode",
+    )
+
+    p = strsub.add_parser("record", help="Record raw video stream to file")
+    p.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output file path (e.g. recording.h264)",
+    )
+    p.add_argument(
+        "--codec",
+        choices=["h264", "h265"],
+        default="h264",
+        help="Video codec (default: h264)",
+    )
+    p.add_argument(
+        "--duration",
+        type=float,
+        default=None,
+        help="Record for N seconds",
+    )
+    p.add_argument(
+        "--frames",
+        type=int,
+        default=None,
+        help="Record N frames",
+    )
+    p.add_argument(
+        "--timeout",
+        type=float,
+        default=10.0,
+        help="Per-frame timeout in seconds (default: 10)",
     )
 
     return parser

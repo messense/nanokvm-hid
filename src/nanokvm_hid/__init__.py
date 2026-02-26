@@ -34,6 +34,7 @@ from .stream import (
     STREAM_MODE_H265_WEBRTC,
     STREAM_MODE_MJPEG,
     Stream,
+    VideoFrame,
 )
 from .transport import (
     DEFAULT_KEYBOARD_DEVICE,
@@ -55,6 +56,7 @@ __all__ = [
     "Jiggler",
     "Storage",
     "Stream",
+    "VideoFrame",
     "VirtualDevices",
     # HID management
     "get_hid_mode",
