@@ -106,6 +106,8 @@ def _dispatch(args: argparse.Namespace, session: _Session) -> None:
         _cmd_wol(args)
     elif cmd == "virtual-device":
         _dispatch_virtual_device(args)
+    elif cmd == "stream":
+        _dispatch_stream(args)
 
 
 def _dispatch_mouse(args: argparse.Namespace, session: _Session) -> None:
@@ -416,6 +418,32 @@ def _dispatch_virtual_device(args: argparse.Namespace) -> None:
         print(f"Virtual disk: {args.type or 'disabled'}")
 
 
+def _dispatch_stream(args: argparse.Namespace) -> None:
+    """Dispatch stream subcommands."""
+    from .stream import Stream
+
+    sub = args.stream_command
+
+    with Stream() as stream:
+        if sub == "status":
+            print(f"  FPS: {stream.fps}")
+
+        elif sub == "fps":
+            if args.value is None:
+                print(f"FPS: {stream.fps}")
+            else:
+                stream.set_fps(args.value)
+                print(f"FPS set to {args.value}")
+
+        elif sub == "gop":
+            stream.set_gop(args.value)
+            print(f"GOP set to {args.value}")
+
+        elif sub == "rate-control":
+            stream.set_rate_control(args.mode)
+            print(f"Rate control set to {args.mode.upper()}")
+
+
 # ── Parser ───────────────────────────────────────────────────────────
 
 
@@ -643,12 +671,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("mac", help="MAC address (e.g. AA:BB:CC:DD:EE:FF)")
 
     # ── virtual-device ───────────────────────────────────────────
-    vdev_parser = sub.add_parser("virtual-device", help="Virtual USB device management")
-    vsub = vdev_parser.add_subparsers(dest="vdev_command", required=True)
+    vdev_parser = sub.add_parser(
+        "virtual-device", help="Virtual USB device management",
+    )
+    vsub = vdev_parser.add_subparsers(
+        dest="vdev_command", required=True,
+    )
 
     vsub.add_parser("status", help="Show virtual device status")
-    vsub.add_parser("network", help="Toggle virtual network adapter (USB NCM)")
-    vsub.add_parser("mic", help="Toggle virtual microphone (USB UAC2)")
+    vsub.add_parser(
+        "network", help="Toggle virtual network adapter (USB NCM)",
+    )
+    vsub.add_parser(
+        "mic", help="Toggle virtual microphone (USB UAC2)",
+    )
     p = vsub.add_parser("disk", help="Set virtual disk source")
     p.add_argument(
         "type",
@@ -656,6 +692,35 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["sdcard", "emmc"],
         default=None,
         help="Disk source (omit to disable)",
+    )
+
+    # ── stream ───────────────────────────────────────────────────
+    stream_parser = sub.add_parser(
+        "stream", help="Video stream encoder control",
+    )
+    strsub = stream_parser.add_subparsers(
+        dest="stream_command", required=True,
+    )
+
+    strsub.add_parser("status", help="Show current encoder settings")
+
+    p = strsub.add_parser("fps", help="Get or set encoder FPS")
+    p.add_argument(
+        "value",
+        nargs="?",
+        type=int,
+        default=None,
+        help="FPS (0=auto, 1–120).  Omit to show current.",
+    )
+
+    p = strsub.add_parser("gop", help="Set encoder GOP length")
+    p.add_argument("value", type=int, help="GOP length (1–200)")
+
+    p = strsub.add_parser(
+        "rate-control", help="Set rate-control mode",
+    )
+    p.add_argument(
+        "mode", choices=["cbr", "vbr"], help="cbr or vbr",
     )
 
     return parser

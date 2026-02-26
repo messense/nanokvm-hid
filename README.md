@@ -15,6 +15,7 @@ The NanoKVM Pro sits between a host computer and its peripherals, exposing USB H
 - **Mouse jiggler** — background keep-alive with relative/absolute modes
 - **HID management** — reset stuck USB gadgets, switch normal/hid-only mode
 - **Virtual USB devices** — toggle network adapter (NCM), microphone (UAC2), disk (SD/eMMC)
+- **Stream control** — FPS, GOP, rate-control mode via libkvm.so ctypes
 - **Wake-on-LAN** — send magic packets to power on machines
 - **Pure Python** — no dependencies beyond the standard library
 - **OS-agnostic target** — works on any OS the KVM-controlled computer runs (Windows, Linux, macOS, BIOS, UEFI…)
@@ -178,6 +179,20 @@ from nanokvm_hid import wake_on_lan
 wake_on_lan("AA:BB:CC:DD:EE:FF")
 ```
 
+### `Stream()`
+
+Control the hardware video encoder via `libkvm.so`:
+
+```python
+from nanokvm_hid import Stream
+
+with Stream() as stream:
+    print(stream.fps)               # current FPS (0 = auto)
+    stream.set_fps(30)              # cap at 30 FPS
+    stream.set_gop(50)              # GOP length (1–200)
+    stream.set_rate_control("vbr")  # "cbr" or "vbr"
+```
+
 ### `HIDTransport(device_path)`
 
 Low-level transport for sending raw HID reports:
@@ -260,6 +275,13 @@ nanokvm-hid virtual-device disk emmc
 
 # Wake-on-LAN
 nanokvm-hid wol AA:BB:CC:DD:EE:FF
+
+# Stream encoder control
+nanokvm-hid stream status
+nanokvm-hid stream fps                      # show current
+nanokvm-hid stream fps 30                   # set to 30
+nanokvm-hid stream gop 50
+nanokvm-hid stream rate-control vbr
 
 # Delay
 nanokvm-hid sleep 1.5

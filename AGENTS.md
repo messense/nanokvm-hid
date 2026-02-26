@@ -41,6 +41,7 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 | `virtual_devices.py` | `/boot/usb.{ncm,uac2,disk1.*}` (flag files) + `usbdev.sh` |
 | `jiggler.py` | HID writes via `transport.py` + config at `/etc/kvm/mouse-jiggler` |
 | `wol.py` | `ether-wake` (subprocess) |
+| `stream.py` | `libkvm.so` via ctypes (`kvmv_set_fps`, `kvmv_set_gop`, `kvmv_set_rate_control`) |
 | `screen.py` | MJPEG stream or PiKVM-compatible API (HTTP — the only exception, for video capture) |
 
 ### Module patterns
@@ -72,6 +73,7 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 - HID gadget reset and mode switching
 - Virtual USB devices (network, mic, disk)
 - Wake-on-LAN
+- Stream encoder control (FPS, GOP, rate-control)
 - Screen capture
 
 **Out of scope** — standard Linux operations:
@@ -81,8 +83,8 @@ Every module talks directly to kernel interfaces. Do **not** add HTTP client cal
 - Package management, firmware updates
 - Network configuration
 
-**Deferred** — requires proprietary library:
-- HDMI stream quality (FPS, GOP, bitrate) — needs `libkvm.so` via ctypes
+**Deferred** — requires proprietary library + exclusive hardware access:
+- HDMI frame capture via libkvm — encoder channels are exclusively owned by the running NanoKVM server; use the MJPEG HTTP stream instead
 
 ## Post-Change Checklist
 
@@ -99,3 +101,4 @@ After any code change (new features, API changes, renamed modules, new CLI comma
 - **EDID binaries**: built-in at `/kvmcomm/edid/`, custom at `/etc/kvm/edid/`. Flag file at `/etc/kvm/edid/edid_flag`.
 - **Image directories**: `/data/` and `/sdcard/` for `.iso`/`.img` files.
 - **USB device script**: `/kvmapp/scripts/usbdev.sh` with args `restart`, `stop`, `start`, `hid-only`.
+- **libkvm.so**: at `/dev/shm/kvmapp/server/dl_lib/libkvm.so`. Requires `kvmv_init()` before `set_*` calls; `kvmv_get_fps()` works without init. Encoder channel creation (`kvmv_read_img`) fails when the NanoKVM server is running (exclusive access), but parameter set functions (`kvmv_set_fps`, `kvmv_set_gop`, `kvmv_set_rate_control`) work fine alongside the server.

@@ -25,6 +25,7 @@ from .keyboard import Keyboard, parse_combo
 from .mouse import Mouse
 from .screen import Screen
 from .storage import Storage
+from .stream import RATE_CONTROL_CBR, RATE_CONTROL_VBR, Stream
 from .transport import (
     DEFAULT_KEYBOARD_DEVICE,
     DEFAULT_MOUSE_DEVICE,
@@ -44,6 +45,7 @@ __all__ = [
     "HDMI",
     "Jiggler",
     "Storage",
+    "Stream",
     "VirtualDevices",
     # HID management
     "get_hid_mode",
@@ -59,6 +61,8 @@ __all__ = [
     "KEYCODES",
     "MODIFIER_MASKS",
     "CONSUMER_CODES",
+    "RATE_CONTROL_CBR",
+    "RATE_CONTROL_VBR",
     # Device defaults
     "DEFAULT_KEYBOARD_DEVICE",
     "DEFAULT_MOUSE_DEVICE",
