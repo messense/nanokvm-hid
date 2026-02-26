@@ -43,7 +43,12 @@ def test_get_hid_mode(mock_path, flag_exists, expected):
 @patch("nanokvm_hid.hid_manager._run_usbdev")
 @patch("nanokvm_hid.hid_manager.get_hid_mode")
 def test_set_hid_mode(
-    mock_get, mock_run, mock_time, current, target, expected_arg,
+    mock_get,
+    mock_run,
+    mock_time,
+    current,
+    target,
+    expected_arg,
 ):
     mock_get.return_value = current
     set_hid_mode(target)
@@ -76,7 +81,11 @@ def test_set_hid_mode_invalid():
 @patch("nanokvm_hid.hid_manager._run_usbdev")
 @patch("nanokvm_hid.hid_manager.get_hid_mode")
 def test_reset_hid(
-    mock_get, mock_run, mock_time, current, expected_arg,
+    mock_get,
+    mock_run,
+    mock_time,
+    current,
+    expected_arg,
 ):
     mock_get.return_value = current
     reset_hid()

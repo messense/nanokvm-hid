@@ -46,11 +46,14 @@ def test_list_images_empty(storage_env):
         (["ubuntu.iso"], 1),
         (["ubuntu.iso", "windows.img"], 2),
         (["ubuntu.iso", "readme.txt"], 1),  # txt ignored
-        (["test.ISO", "test2.Img"], 2),     # case insensitive
+        (["test.ISO", "test2.Img"], 2),  # case insensitive
     ],
 )
 def test_list_images_filters(
-    storage_env, tmp_path, filenames, expected_count,
+    storage_env,
+    tmp_path,
+    filenames,
+    expected_count,
 ):
     image_dir = tmp_path / "data"
     for name in filenames:
@@ -73,15 +76,20 @@ def test_list_images_nested(storage_env, tmp_path):
     ("cdrom", "read_only", "expect_cdrom", "expect_ro"),
     [
         (False, False, "0", "0"),
-        (True, False, "1", "1"),   # cdrom implies read-only
+        (True, False, "1", "1"),  # cdrom implies read-only
         (False, True, "0", "1"),
         (True, True, "1", "1"),
     ],
 )
 @patch("nanokvm_hid.storage._restart_usb")
 def test_mount(
-    mock_restart, storage_env, tmp_path,
-    cdrom, read_only, expect_cdrom, expect_ro,
+    mock_restart,
+    storage_env,
+    tmp_path,
+    cdrom,
+    read_only,
+    expect_cdrom,
+    expect_ro,
 ):
     image = tmp_path / "data" / "test.iso"
     image.write_text("fake")
@@ -126,7 +134,12 @@ def test_mounted_nothing(storage_env):
     ],
 )
 def test_mounted_with_flags(
-    storage_env, tmp_path, cdrom_val, ro_val, expect_cdrom, expect_ro,
+    storage_env,
+    tmp_path,
+    cdrom_val,
+    ro_val,
+    expect_cdrom,
+    expect_ro,
 ):
     (tmp_path / "lun0_file").write_text("/data/test.iso")
     (tmp_path / "lun0_cdrom").write_text(cdrom_val)

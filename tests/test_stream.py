@@ -149,10 +149,13 @@ def test_set_mode_invalid(stream, mode):
 def test_connection_error(stream):
     import urllib.error
 
-    with patch(
-        "nanokvm_hid.stream.urllib.request.urlopen",
-        side_effect=urllib.error.URLError("refused"),
-    ), pytest.raises(ConnectionError, match="Cannot connect"):
+    with (
+        patch(
+            "nanokvm_hid.stream.urllib.request.urlopen",
+            side_effect=urllib.error.URLError("refused"),
+        ),
+        pytest.raises(ConnectionError, match="Cannot connect"),
+    ):
         stream.set_fps(30)
 
 
@@ -164,10 +167,13 @@ def test_server_error_response(stream):
     resp.read.return_value = json.dumps(
         {"code": -1, "msg": "failed"},
     ).encode()
-    with patch(
-        "nanokvm_hid.stream.urllib.request.urlopen",
-        return_value=resp,
-    ), pytest.raises(RuntimeError, match="Server returned error"):
+    with (
+        patch(
+            "nanokvm_hid.stream.urllib.request.urlopen",
+            return_value=resp,
+        ),
+        pytest.raises(RuntimeError, match="Server returned error"),
+    ):
         stream.set_fps(30)
 
 

@@ -134,8 +134,7 @@ class Jiggler:
         """
         if mode not in ("relative", "absolute"):
             raise ValueError(
-                f"Invalid jiggler mode: {mode!r}"
-                " (use 'relative' or 'absolute')"
+                f"Invalid jiggler mode: {mode!r} (use 'relative' or 'absolute')"
             )
 
         self._mode = mode

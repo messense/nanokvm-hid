@@ -30,8 +30,7 @@ _VIRTUAL_DISK_EMMC_FLAG = "/boot/usb.disk1.emmc"
 _VIRTUAL_NETWORK_INDICATOR = "/sys/kernel/config/usb_gadget/g0/configs/c.1/ncm.usb0"
 _VIRTUAL_MIC_INDICATOR = "/sys/kernel/config/usb_gadget/g0/configs/c.1/uac2.usb0"
 _VIRTUAL_DISK_INDICATOR = (
-    "/sys/kernel/config/usb_gadget/g0/functions"
-    "/mass_storage.disk1/lun.0/file"
+    "/sys/kernel/config/usb_gadget/g0/functions/mass_storage.disk1/lun.0/file"
 )
 
 # Scripts

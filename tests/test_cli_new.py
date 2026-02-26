@@ -90,9 +90,7 @@ def test_parse_storage_simple(argv, expected_sub):
 
 
 def test_parse_storage_mount():
-    args = build_parser().parse_args(
-        ["storage", "mount", "/data/test.iso", "--cdrom"]
-    )
+    args = build_parser().parse_args(["storage", "mount", "/data/test.iso", "--cdrom"])
     assert args.file == "/data/test.iso"
     assert args.cdrom is True
 
@@ -110,7 +108,9 @@ def test_storage_list_dispatch(mock_list):
 def test_storage_mount_dispatch(mock_mount):
     main(["storage", "mount", "/data/a.iso", "--cdrom", "--read-only"])
     mock_mount.assert_called_once_with(
-        "/data/a.iso", cdrom=True, read_only=True,
+        "/data/a.iso",
+        cdrom=True,
+        read_only=True,
     )
 
 

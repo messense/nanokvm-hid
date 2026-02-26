@@ -95,7 +95,9 @@ class Stream:
 
         try:
             resp = urllib.request.urlopen(
-                req, timeout=self._timeout, context=self._ssl_ctx,
+                req,
+                timeout=self._timeout,
+                context=self._ssl_ctx,
             )
             body = json.loads(resp.read())
         except (urllib.error.URLError, OSError) as exc:
@@ -104,9 +106,7 @@ class Stream:
             ) from exc
 
         if body.get("code") != 0:
-            raise RuntimeError(
-                f"Server returned error for {endpoint}: {body}"
-            )
+            raise RuntimeError(f"Server returned error for {endpoint}: {body}")
         return body
 
     # ── FPS ───────────────────────────────────────────────────────
@@ -207,8 +207,7 @@ class Stream:
         mode_lower = mode.lower()
         if mode_lower not in (RATE_CONTROL_CBR, RATE_CONTROL_VBR):
             raise ValueError(
-                f"Unknown rate-control mode: {mode!r}"
-                " (use 'cbr' or 'vbr')"
+                f"Unknown rate-control mode: {mode!r} (use 'cbr' or 'vbr')"
             )
         self._post("rate-control", mode=mode_lower)
         logger.info("set rate control to %s", mode_lower.upper())
@@ -232,9 +231,7 @@ class Stream:
         mode_lower = mode.lower()
         if mode_lower not in _VALID_MODES:
             valid = ", ".join(sorted(_VALID_MODES))
-            raise ValueError(
-                f"Unknown stream mode: {mode!r} (choose from: {valid})"
-            )
+            raise ValueError(f"Unknown stream mode: {mode!r} (choose from: {valid})")
         self._post("mode", mode=mode_lower)
         logger.info("set stream mode to %s", mode_lower)
 

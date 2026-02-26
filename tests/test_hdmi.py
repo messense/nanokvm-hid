@@ -173,13 +173,13 @@ def test_switch_edid_not_found(tmp_path):
 def test_upload_edid(tmp_path):
     custom = tmp_path / "custom"
     src = tmp_path / "my-edid.bin"
-    src.write_bytes(b"\xAA\xBB")
+    src.write_bytes(b"\xaa\xbb")
 
     with patch("nanokvm_hid.hdmi._CUSTOM_EDID_DIR", str(custom)):
         name = HDMI().upload_edid(str(src))
 
     assert name == "my-edid.bin"
-    assert (custom / "my-edid.bin").read_bytes() == b"\xAA\xBB"
+    assert (custom / "my-edid.bin").read_bytes() == b"\xaa\xbb"
 
 
 def test_delete_edid(tmp_path):

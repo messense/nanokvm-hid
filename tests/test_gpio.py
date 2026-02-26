@@ -27,7 +27,7 @@ def gpio():
 @pytest.mark.parametrize(
     ("content", "expected"),
     [
-        ("0\n", True),   # active-low: 0 means LED on
+        ("0\n", True),  # active-low: 0 means LED on
         ("1\n", False),  # 1 means LED off
         ("0", True),
         ("1", False),
@@ -54,7 +54,12 @@ def test_read_gpio(tmp_path, content, expected):
 @patch("nanokvm_hid.gpio._write_gpio")
 @patch("nanokvm_hid.gpio.time")
 def test_button_press(
-    mock_time, mock_write, gpio, method, duration, pin_attr,
+    mock_time,
+    mock_write,
+    gpio,
+    method,
+    duration,
+    pin_attr,
 ):
     getattr(gpio, method)(duration_ms=duration)
     pin = getattr(gpio, pin_attr)

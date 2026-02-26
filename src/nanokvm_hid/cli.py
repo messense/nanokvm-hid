@@ -678,18 +678,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     # ── virtual-device ───────────────────────────────────────────
     vdev_parser = sub.add_parser(
-        "virtual-device", help="Virtual USB device management",
+        "virtual-device",
+        help="Virtual USB device management",
     )
     vsub = vdev_parser.add_subparsers(
-        dest="vdev_command", required=True,
+        dest="vdev_command",
+        required=True,
     )
 
     vsub.add_parser("status", help="Show virtual device status")
     vsub.add_parser(
-        "network", help="Toggle virtual network adapter (USB NCM)",
+        "network",
+        help="Toggle virtual network adapter (USB NCM)",
     )
     vsub.add_parser(
-        "mic", help="Toggle virtual microphone (USB UAC2)",
+        "mic",
+        help="Toggle virtual microphone (USB UAC2)",
     )
     p = vsub.add_parser("disk", help="Set virtual disk source")
     p.add_argument(
@@ -702,15 +706,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     # ── stream ───────────────────────────────────────────────────
     stream_parser = sub.add_parser(
-        "stream", help="Video stream encoder control",
+        "stream",
+        help="Video stream encoder control",
     )
     strsub = stream_parser.add_subparsers(
-        dest="stream_command", required=True,
+        dest="stream_command",
+        required=True,
     )
 
     p = strsub.add_parser("fps", help="Set encoder FPS")
     p.add_argument(
-        "value", type=int, help="FPS (0=auto, 1–120)",
+        "value",
+        type=int,
+        help="FPS (0=auto, 1–120)",
     )
 
     p = strsub.add_parser("gop", help="Set encoder GOP length")
@@ -723,18 +731,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("value", type=int, help="Bitrate in kbps (1000–20000)")
 
     p = strsub.add_parser(
-        "rate-control", help="Set rate-control mode",
+        "rate-control",
+        help="Set rate-control mode",
     )
     p.add_argument(
-        "mode", choices=["cbr", "vbr"], help="cbr or vbr",
+        "mode",
+        choices=["cbr", "vbr"],
+        help="cbr or vbr",
     )
 
     p = strsub.add_parser("mode", help="Set stream mode")
     p.add_argument(
         "mode",
         choices=[
-            "mjpeg", "h264-webrtc", "h264-direct",
-            "h265-webrtc", "h265-direct",
+            "mjpeg",
+            "h264-webrtc",
+            "h264-direct",
+            "h265-webrtc",
+            "h265-direct",
         ],
         help="Stream mode",
     )
