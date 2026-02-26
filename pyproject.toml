@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nanokvm-hid"
-version = "0.2.0"
+version = "0.2.1"
 description = "Python library for controlling keyboard, mouse, and touchpad via HID gadgets on NanoKVM Pro"
 readme = "README.md"
 license = "MIT"
